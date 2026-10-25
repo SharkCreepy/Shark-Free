@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // providers/gemini.js - the Google Gemini (gemini.google.com) provider.
-// Exports the same ZSProvider interface as providers/deepseek.js; the core
+// Exports the same ZSProvider interface as providers/kimi.js; the core
 // (core/main.js) is provider-agnostic. To DISABLE Gemini support, simply remove
 // this file from manifest.json (and its URL from background.js PROVIDER_URLS).
 //
@@ -18,7 +18,7 @@
 //  - The primary action button (in <input-area-v2>) is identified by its
 //    <mat-icon fonticon>: "arrow_upward" = send (text present), "stop" =
 //    generating (whole stream, start to end - no indicatorless reasoning
-//    phase like DeepSeek), "mic" = idle empty. aria-labels are localized,
+//    indicatorless reasoning phase), "mic" = idle empty. aria-labels are localized,
 //    fonticon names are NOT - we anchor on fonticon.
 //  - No truncation "Continue" button; no per-turn "stopped" marker we can
 //    rely on → findContinueBtn/turnHalted return null/false.
@@ -58,7 +58,7 @@ const ZSProvider = (() => {
 
   // Gemini streams continuously with a hard stop-icon signal for the WHOLE
   // generation (including thinking), so idle windows can be much tighter than
-  // DeepSeek's. Thinking models still get generous reasoning windows.
+  // other providers'. Thinking models still get generous reasoning windows.
   const timings = {
     GEN_IDLE_MS: 1500,
     REASON_IDLE_MS: 12000,
@@ -116,7 +116,7 @@ const ZSProvider = (() => {
   const assistantItems = () => [...document.querySelectorAll(S.assistantItem)];
   const assistantCount = () => assistantItems().length;
   const userCount = () => document.querySelectorAll(S.userItem).length;
-  // Scope to the SITE's composer only: skip ZeroScript's own injected UI (the
+  // Scope to the SITE's composer only: skip SharkNyx's own injected UI (the
   // settings textarea #zs-set-text in #zs-root). On login/OAuth pages with no
   // site editor this returns null, keeping the "not on a chat page" guard in
   // the send hooks intact (otherwise our own textarea would defeat it and the
@@ -147,7 +147,7 @@ const ZSProvider = (() => {
   // message is actually sent, validated live 2026-07). Gating on the URL left
   // isFreshChat() - and, transitively, conversationKey() below - still seeing
   // the OLD conversation id on a chat that was visually empty, so the
-  // ZeroScript bar stuck on "Agent active" with no way to start a new session.
+  // SharkNyx bar stuck on "Agent active" with no way to start a new session.
   const isFreshChat = () => chatIsEmpty() && !!getEditor();
 
   // The composer box the Start gate hides as one unit.
@@ -194,7 +194,7 @@ const ZSProvider = (() => {
 
   // ── Generation detection ──────────────────────────────────────────────────
   // The stop icon is present for the ENTIRE generation (validated live), which
-  // makes detection far simpler than DeepSeek. Growth tracking remains as a
+  // makes detection far simpler than it is on some other providers. Growth tracking remains as a
   // belt-and-braces fallback for the instants around start/end.
   function streamText(item) {
     if (!item) return "";
@@ -358,7 +358,7 @@ const ZSProvider = (() => {
     const lines = String(text).split("\n");
     if (text.length <= SEND_MAX_CHARS && lines.length <= SEND_MAX_LINES) return text;
     const marker = (what) =>
-      `\n\n[…ZeroScript: result truncated (${what}) so it can be pasted into ` +
+      `\n\n[…SharkNyx: result truncated (${what}) so it can be pasted into ` +
       `Gemini's composer without freezing the page. Do NOT re-run the command; ` +
       `work with the head and tail shown here…]\n\n`;
     let out, note;
@@ -496,7 +496,7 @@ const ZSProvider = (() => {
     const arr = new Uint8Array(bin.length);
     for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
     const ext = mime.includes("png") ? "png" : "jpg";
-    return new File([arr], `zeroscript_${Date.now()}_${i}.${ext}`, { type: mime });
+    return new File([arr], `SharkNyx_${Date.now()}_${i}.${ext}`, { type: mime });
   }
   async function attachImages(images) {
     const ed = getEditor();
@@ -616,7 +616,7 @@ const ZSProvider = (() => {
   // robust: hide every <code-block> in the reply whose text carries a command
   // shape, plus any bare top-level paragraph that holds an inline command (the
   // model is told to use code blocks, but this catches a stray inline one).
-  // The host-walk the DeepSeek provider uses is WRONG here - it descends inside
+  // The host-walk the another provider provider uses is WRONG here - it descends inside
   // a code-block, so hiding the wrapper then fails. The core anchors the chip at
   // the turn level (chipAtItemLevel), so the returned position is unused; this
   // function's real job is applying the .zs-tool-hide classes correctly.
@@ -663,7 +663,7 @@ const ZSProvider = (() => {
     supportsVision: true,
     timings,
     // Reasoning-area selector, exported so the CORE's raw-command-visible probes
-    // exclude it (same fix as DeepSeek): Gemini's thinking models (2.5 Pro/Flash)
+    // exclude it (same fix as another provider): Gemini's thinking models (2.5 Pro/Flash)
     // render their reasoning in <model-thoughts> and often QUOTE the command
     // JSON/###LUA### there. The camouflage never hides that quote (by design), so
     // without this exclusion the core reads it as "raw block still visible"
@@ -686,7 +686,7 @@ const ZSProvider = (() => {
     // watcher uses this to refuse finalizing before this send's reply turn
     // exists (fixes premature loop.end on the previous turn's stable text).
     reliableCounts: true,
-    // Shown as a permanent, non-intrusive notice in the ZeroScript panel.
+    // Shown as a permanent, non-intrusive notice in the SharkNyx panel.
     // Gemini drifts away from emitting tool blocks after a while in long
     // sessions - observed live, model behavior, not something the prompt fixes.
     unstableWarning:

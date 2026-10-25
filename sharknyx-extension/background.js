@@ -10,10 +10,10 @@
 const PORT = 17613;
 const URL = `ws://127.0.0.1:${PORT}`;
 
-// Chat sites where a ZeroScript provider content script runs. Status pushes go
+// Chat sites where a SharkNyx provider content script runs. Status pushes go
 // to every tab matching these. Add the new provider's URL pattern here (and in
 // manifest.json content_scripts + host_permissions) when integrating another AI.
-const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*", "https://www.kimi.ai/*", "https://kimi.ai/*", "https://chat.z.ai/*", "https://chat.qwen.ai/*", "https://arena.ai/*", "https://www.meta.ai/*", "https://meta.ai/*"];
+const PROVIDER_URLS = ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*", "https://www.kimi.ai/*", "https://kimi.ai/*", "https://chat.z.ai/*", "https://chat.qwen.ai/*", "https://arena.ai/*", "https://ptero.pro/*", "https://www.meta.ai/*", "https://meta.ai/*"];
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 5000;
@@ -284,7 +284,7 @@ function failAllPending(reason) {
   pending.clear();
 }
 
-// ── status push to any open DeepSeek tab + popup ─────────────────────────
+// ── status push to any open provider tab + popup ─────────────────────────
 function statusObj() {
   return { type: "zs-status", connected, mcpAlive, studio: studioConnected, studioApp, studioProc, tools: toolsCache.length, servers: serversCache };
 }

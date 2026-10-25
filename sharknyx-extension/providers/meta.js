@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // providers/meta.js - the Meta AI (www.meta.ai) provider.
-// Exports the same ZSProvider interface as providers/deepseek.js; the core
+// Exports the same ZSProvider interface as providers/arena.js; the core
 // (core/main.js) is provider-agnostic. To DISABLE Meta AI support, remove this
 // file from manifest.json (and its URL from background.js PROVIDER_URLS).
 //
@@ -15,7 +15,7 @@
 //    [data-testid="subagent-cot-list"] - both are excluded from the read text so
 //    a chain-of-thought never counts as model output or a command.
 //  - Composer = real <textarea data-testid="composer-input"> (native value setter
-//    + input event, like Arena/DeepSeek). Send = [data-testid="composer-send-button"]
+//    + input event, like Arena). Send = [data-testid="composer-send-button"]
 //    (aria "Envoyer"); DURING generation it is replaced by
 //    [data-testid="composer-stop-button"] (aria "Arrêter") and the send testid
 //    disappears - that stop button present = generation active.
@@ -34,7 +34,7 @@
 //        its line spans with "\n" to rebuild the source (same fix class as GLM's
 //        .cm-line / Qwen's Monaco).
 //  - IMPORTANT (viability): Meta AI's guardrail REFUSES to emit command JSON when
-//    the framing is thin; the FULL ZeroScript system prompt (with the "commands
+//    the framing is thin; the FULL SharkNyx system prompt (with the "commands
 //    are NOT function calls, just TYPE the JSON" reassurance) defuses it and it
 //    complies. Nothing to do in code - just never bootstrap with a stripped prompt.
 // eslint-disable-next-line no-unused-vars
@@ -470,7 +470,7 @@ const ZSProvider = (() => {
     const arr = new Uint8Array(bin.length);
     for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
     const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : mime.includes("gif") ? "gif" : "jpg";
-    return new File([arr], `zeroscript_${Date.now()}_${i}.${ext}`, { type: mime });
+    return new File([arr], `SharkNyx_${Date.now()}_${i}.${ext}`, { type: mime });
   }
   const fileInputEl = () => {
     for (const inp of document.querySelectorAll('input[type="file"]')) {

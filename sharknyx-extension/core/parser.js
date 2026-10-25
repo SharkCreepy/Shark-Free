@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// core/parser.js - ZeroScript command parsing. PURE string logic, zero DOM:
+// core/parser.js - SharkNyx command parsing. PURE string logic, zero DOM:
 // the provider extracts a turn's text from the site's DOM; everything here
 // operates on that text. The command formats (###LUA### blocks, {"command":…}
 // JSON) are defined by OUR system prompt, so they are the same on every AI site
@@ -58,26 +58,6 @@ const ZSParse = (() => {
   // contains - so paramless calls are detected without false-positiving on text.
   const CMD_KEY_RE = /"(?:command|tool)"\s*:\s*"/;
 
-  // DeepSeek's OWN agentic tool-call markup ("DSML"), which it sometimes emits
-  // instead of a ZeroScript command - seen live in user reports, DeepSeek only:
-  //   <|DSML|>tool_calls>
-  //   <|DSML|>invoke name="script_read">
-  //   <|DSML|>parameter name="target_file" string="true">…</|DSML|>parameter>
-  //   </|DSML|>tool_calls>
-  // It carries no "command"/"tool" key and no ###…### markers, so every guard in
-  // the classify ladder missed it and the turn finalized as a plain-text answer:
-  // the tool never ran and the loop ended with the user watching a dead agent.
-  // Matches the opener AND the closing "</|DSML|>…" form. Verified live
-  // 2026-08-22: DeepSeek emits PLAIN ASCII bars, `<|DSML|>tool_calls>`. The
-  // doubled "< |  | DSML |  |" seen in user screenshots is only how the site
-  // RENDERS it, but the class is deliberately permissive - any run of bars and
-  // spaces on either side - so a build that really does emit doubled or
-  // full-width (U+FF5C) bars is covered too, without needing another sample. Deliberately NOT
-  // gated on a known tool name: the degenerate case seen in the wild is a bare
-  // `<|DSML|>tool_calls>` with no invoke and no name at all, and the marker
-  // itself never occurs in ordinary prose.
-  const DSML_RE = /<[\s\/]*[|｜][\s|｜]*DSML[\s|｜]*[|｜]/i;
-
   function hasToolSignature(r) {
     return (
       r.includes(START_M) ||
@@ -113,7 +93,7 @@ const ZSParse = (() => {
   }
 
   // Normalise a parsed JSON object into { tool, arguments }, accepting both the
-  // new ZeroScript schema ("command"/"params") and the legacy/function-calling
+  // new SharkNyx schema ("command"/"params") and the legacy/function-calling
   // schema ("tool"/"arguments"/"name"/"args"). Returns null if not a valid call.
   function normalizeCall(o) {
     if (!o || typeof o !== "object") return null;
@@ -358,24 +338,16 @@ const ZSParse = (() => {
            /^\s*\(System note:/.test(txt);
   }
 
-  // The assistant emitted a ZeroScript command (JSON or a ###LUA### block), or a
-  // command-turn ATTEMPT the camouflage sweep should still mask. DSML counts:
-  // the turn IS the model calling a tool, just in the wrong dialect, so it gets a
-  // chip like any other command turn instead of dumping raw markup at the user
-  // (reported live 2026-08-22 - the error fired correctly but the tags stayed on
-  // screen). Note this is deliberately NOT mirrored in hasToolSignature: that
-  // one gates the parse/execute path, and DSML must keep falling through to the
-  // classify ladder so it fires the "dsml" parse_error rather than being handed
-  // to parseToolCalls, which cannot read it.
+  // The assistant emitted a command (JSON or a ###LUA### block), or a command-turn
+  // attempt that the camouflage sweep should still mask.
   function hasCommandShape(txt) {
     return txt.includes(START_M) ||
            LUA_START_RE.test(txt) ||
-           DSML_RE.test(txt) ||
            CMD_KEY_RE.test(txt); // command/tool with OR without params (e.g. list_commands)
   }
 
   return {
-    START_M, END_M, LUA_START_RE, LUA_END_RE, CMD_KEY_RE, DSML_RE,
+    START_M, END_M, LUA_START_RE, LUA_END_RE, CMD_KEY_RE,
     findLuaStart, findLuaEnd, matchBrace, extractJson, normalizeCall,
     hasToolSignature, hasOpenToolBlock, parseToolCalls, salvageCutOff, toolNameFromText,
     isInjectedFeedback, hasCommandShape,

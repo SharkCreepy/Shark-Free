@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* overlay.css - ZeroScript Free in-page UI. Scoped under #zs-root / .zs-* */
+/* overlay.css - SharkNyx Free in-page UI. Scoped under #zs-root / .zs-* */
 
 #zs-root {
   position: fixed;
@@ -29,7 +29,7 @@
    pushes content down instead of floating. Two looks:
    • default (mounted ABOVE the input box, e.g. Gemini) → a subtle surface card so
      it reads as a panel and doesn't float in empty space;
-   • .zs-bar-inside (mounted INSIDE the input box, e.g. DeepSeek) → transparent
+   • .zs-bar-inside (mounted INSIDE the input box, for an inline provider) → transparent
      with just a divider, so it blends into the composer surface it lives in. */
 #zs-bar.zs-bar-inline {
   position: static;
@@ -76,7 +76,7 @@ html.zs-light #zs-bar.zs-bar-inline.zs-bar-inside {
   box-shadow: none;
   backdrop-filter: none;
   /* A touch of vertical room so the bar doesn't feel cramped against the input
-     (matches the roomier DeepSeek inline look). The reserved strip in placeBar
+     (matches the roomier inline-composer layout). The reserved strip in placeBar
      (bar height + gap) tracks this automatically. */
   padding: 9px 16px;
 }
@@ -87,7 +87,7 @@ html.zs-light #zs-bar.zs-bar-anchored {
 
 /* Per-site tuning. On Gemini the default system stack looked foreign next to
    Google Sans, and weight 700 read heavy - match the host for a native feel.
-   DeepSeek is left exactly as-is (it already blends well). */
+   Gemini already blends into its host surface. */
 #zs-bar.zs-prov-gemini {
   font-family: "Google Sans Text", "Google Sans", Roboto, ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
 }
@@ -109,7 +109,7 @@ html.zs-light #zs-bar.zs-bar-anchored {
    from the live grid-template-areas, so a rename does not have to break this.
    The bottom margin keeps it off the input row; the negative side margins let
    it reach the card's padding edges so it reads as part of the composer, like
-   on DeepSeek. */
+   in an inline composer. */
 /* Selector carries .zs-bar-inline.zs-bar-inside on purpose: the generic
    `#zs-bar.zs-bar-inline.zs-bar-inside` rule above is more specific than a plain
    `#zs-bar.zs-prov-chatgpt`, so the margin below was silently losing to it. */
@@ -403,7 +403,7 @@ button.zs-site-opt:hover .zs-site-go { opacity: 1; transform: translateX(0); }
 .zs-mcp-health-off { background: #f87171; }
 .zs-mcp-health-unknown { background: #6b7280; }
 /* Roblox: always first, greyed out - no health dot (own status lives in the
-   main ZeroScript dot) and no remove button (protected bridge-side too). */
+   main SharkNyx dot) and no remove button (protected bridge-side too). */
 .zs-mcp-item-primary { opacity: 0.55; background: rgba(255, 255, 255, 0.02); }
 .zs-mcp-item-primary .zs-mcp-name { font-weight: 500; }
 .zs-mcp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -458,7 +458,7 @@ button.zs-site-opt:hover .zs-site-go { opacity: 1; transform: translateX(0); }
 }
 
 /* belt-and-suspenders: the typed text itself is rendered invisible
-   (DeepSeek's composer is a <textarea>; the Kimi build used a contenteditable)
+   (A native <textarea>; the Kimi build used a contenteditable)
    Matched on [contenteditable] with NO VALUE, deliberately. These rules used to
    require [contenteditable='true'], but a provider that locks the composer by
    flipping the attribute to "false" (ChatGPT's setInputLock does exactly that)
@@ -477,8 +477,8 @@ div[contenteditable].zs-typing { caret-color: transparent !important; }
    under #zs-input-cover anyway, so there is nothing to see - but without a cap
    the editor grows to fit every line (e.g. Kimi's inner .chat-input-editor hit
    ~1500px), which then makes the cover (sized to the editor rect) a giant white
-   slab over the page, and on composers with no clipping ancestor (DeepSeek's
-   textarea, Gemini's Quill) balloons the visible box itself. Clipping the height
+   slab over the page, and on composers with no clipping ancestor (a native
+   textarea or Gemini's Quill) balloons the visible box itself. Clipping the height
    only affects DISPLAY; the full value/content is intact and still sent. The
    class is present only during agent injection, never while the user types, so
    this never clips real typing. */
@@ -509,7 +509,7 @@ div[contenteditable].zs-typing {
    the next sweep. <message-content> itself keeps its identity through those
    re-renders (validated live, 2026-06), so the provider marks IT with
    .zs-cmd-mask and this rule keeps every recreated code-block hidden with no
-   flash. Inert on DeepSeek (no such elements). */
+   flash. Inert on providers without such elements. */
 message-content.zs-cmd-mask code-block { display: none !important; }
 /* ChatGPT (React): React re-creates the <pre> code blocks inside a reply on
    every token, wiping any per-element .zs-tool-hide class. The .markdown
@@ -557,6 +557,10 @@ message-content.zs-cmd-mask code-block { display: none !important; }
    viewer widget or a plain <pre>) hidden with no flash. Inert elsewhere. */
 .zs-cmd-mask .ur-code-block { display: none !important; }
 
+/* Ptero.pro streams rendered Markdown into a stable .chat-msg-text node. */
+.chat-msg-text.zs-cmd-mask pre { display: none !important; }
+.chat-msg-text.zs-cmd-mask-all > *:not(.zs-chip) { display: none !important; }
+
 /* Meta AI whole-turn chips (result / sys) alignment. A whole:true chip is pinned
    as a direct child of the TURN ROOT, but Meta's turn root is FULL width (~1608px)
    while the reply body lives in a nested `mx-auto max-w-3xl` (768px) centered
@@ -574,7 +578,7 @@ html.zs-site-meta .zs-hidden > .zs-chip {
 /* Qwen (Ant Design) renders its model / thinking-mode select popup AND the
    composer "+" attachment menu (Upload attachment / Deep Research / Create
    image / Web Dev / Slides / More) at z-index 1050-1150 - far below #zs-root
-   (2147483600) - so the ZeroScript bar covered the bottom of whichever menu was
+   (2147483600) - so the SharkNyx bar covered the bottom of whichever menu was
    open (reported live: the "+" menu's "More" row and the bar's own "Tools"
    toggle drew on top of each other). Both popups are portalled to <body>, so
    raising their z-index above the bar lifts them back on top. Inert when a
@@ -584,7 +588,7 @@ html.zs-site-meta .zs-hidden > .zs-chip {
 
 /* Qwen's model list has an "Expand more models" fly-out submenu (the Qwen3.6
    family etc.) rendered as a SEPARATE body-portalled `.ant-dropdown` at z-index
-   1050 - NOT the `.qwen-select-dropdown` above - so the ZeroScript bar drew on
+   1050 - NOT the `.qwen-select-dropdown` above - so the SharkNyx bar drew on
    top of it (reported live: the bar's "Start Roblox agent" row covered the
    Qwen3.6-Max-Preview description). Scoped with :has() to the dropdown that
    actually holds model rows, so unrelated Ant dropdowns/tooltips are untouched. */
@@ -595,7 +599,7 @@ html.zs-site-meta .zs-hidden > .zs-chip {
    photos / Presets / Plugins / Skills / Web search), and that same button's
    OWN hover tooltip ("Add files & photos…") - into a
    .v-binder-follower-container at z-index ~20-2001, far below #zs-root
-   (2147483600) - so the ZeroScript bar/pill covered the open menu/tooltip
+   (2147483600) - so the SharkNyx bar/pill covered the open menu/tooltip
    (reported live: opening "+", or just hovering it, while the agent was
    working drew the "unstable" pill and composer cover through it). Lift the
    container above the bar. :has scopes this to those known popovers
@@ -617,7 +621,7 @@ html.zs-site-meta .zs-hidden > .zs-chip {
 /* GLM / Z.ai (bits-ui floating library) portals its composer-toolbar popovers -
    the Search / Advanced Search hover card, and similar tooltips/dropdowns - into
    a [data-bits-floating-content-wrapper] at z-index ~9999, far below #zs-root
-   (2147483600), so the ZeroScript bar sat in front of them (the popover appeared
+   (2147483600), so the SharkNyx bar sat in front of them (the popover appeared
    "behind" the bar on hover). The wrapper is the positioned/stacking element, so
    lifting it above the bar fixes every bits-ui popover anchored near the bar. */
 [data-bits-floating-content-wrapper] { z-index: 2147483646 !important; }
@@ -625,20 +629,20 @@ html.zs-site-meta .zs-hidden > .zs-chip {
 /* Gemini (Angular Material) portals its composer "+" menu (Import files /
    Create image / Canvas / Deep Research…) and its other dialogs into a single
    body-level .cdk-overlay-container at z-index 1000 - far below #zs-root
-   (2147483600) / #zs-unstable (2147483601). The ZeroScript bar and its
+   (2147483600) / #zs-unstable (2147483601). The SharkNyx bar and its
    floating "unstable" pill sat OVER the open menu (reported live: opening "+"
    while the agent was working drew the pill straight through the menu).
-   Lift the whole overlay container above every ZeroScript surface. */
+   Lift the whole overlay container above every SharkNyx surface. */
 .cdk-overlay-container { z-index: 2147483646 !important; }
 
-/* DeepSeek (its own "ds-" design system) portals tooltips and popovers - e.g.
+/* The host (its own "ds-" design system) portals tooltips and popovers - e.g.
    the "Think before responding…" tooltip on the DeepThink pill - into a
    body-level .ds-floating-container at z-index 1024, far below #zs-root
    (2147483600) and #zs-input-cover (2147483500). While the composer cover sits
    over the input during agent activity, it visually covered the tooltip
    (reported live: hovering DeepThink while the agent was working showed the
-   tooltip clipped/behind the bar). Lift every DeepSeek floating portal above
-   ZeroScript's own overlays. */
+   tooltip clipped/behind the bar). Lift every host floating portal above
+   SharkNyx's own overlays. */
 .ds-floating-container { z-index: 2147483646 !important; }
 
 /* Arena (Radix UI) portals its header dropdowns - the model picker and the
@@ -876,7 +880,7 @@ ol.flex-col-reverse > div.w-full:not(.mx-auto) > .zs-chip {
 }
 #zs-setup-dismiss:hover { background: rgba(255, 255, 255, 0.06); }
 
-/* ── capture preview popup (left-hand, ZeroScript style) ─────── */
+/* ── capture preview popup (left-hand, SharkNyx style) ─────── */
 .zs-shot {
   position: fixed; left: 18px; top: 72px; width: 300px; max-width: 32vw;
   background: #161618; color: #ececee;

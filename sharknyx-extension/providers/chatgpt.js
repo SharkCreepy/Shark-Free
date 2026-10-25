@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // providers/chatgpt.js - the OpenAI ChatGPT (chatgpt.com) provider.
-// Exports the same ZSProvider interface as providers/deepseek.js and
+// Exports the same ZSProvider interface as providers/kimi.js and
 // providers/gemini.js; the core (core/main.js) is provider-agnostic. To DISABLE
 // ChatGPT support, remove this file from manifest.json (and its URL from
 // background.js PROVIDER_URLS + manifest host_permissions + popup.js
@@ -50,7 +50,7 @@
 //    far (2026-08, free tier) had no such element, so `thinkingSel` is not
 //    exported. If reasoning ever quotes a command block, the core's
 //    "raw command still visible" probe could flap - that is the symptom to watch
-//    for, and the fix is to export thinkingSel here (see deepseek.js).
+//    for, and the fix is to export thinkingSel here (see kimi.js).
 //  - New chat: <a data-testid="create-new-chat-button" href="/">. A blank new
 //    chat is exactly "/"; a conversation is /c/<id>.
 //  - ChatGPT's free tier caps messages, and caps image/file input SEPARATELY, so
@@ -270,8 +270,8 @@ const ZSProvider = (() => {
     return ed.closest("[class*='prosemirror-parent']") || ed;
   };
 
-  // Where the ZeroScript bar lives: INSIDE the rounded composer surface (the
-  // element carrying --composer-surface-primary), like DeepSeek - not floating
+  // Where the SharkNyx bar lives: INSIDE the rounded composer surface (the
+  // element carrying --composer-surface-primary), like an inline provider - not floating
   // above it, which is narrower than the composer and covers the page's greeting.
   //
   // That surface lays its children out in a CSS grid. A child with no grid-area
@@ -513,7 +513,7 @@ const ZSProvider = (() => {
     const lines = String(text).split("\n");
     if (text.length <= SEND_MAX_CHARS && lines.length <= SEND_MAX_LINES) return text;
     const marker = (what) =>
-      `\n\n[…ZeroScript: result truncated (${what}) so it can be pasted into ` +
+      `\n\n[…SharkNyx: result truncated (${what}) so it can be pasted into ` +
       `ChatGPT's composer without freezing the page. Do NOT re-run the command; ` +
       `work with the head and tail shown here…]\n\n`;
     let out, note;
@@ -600,7 +600,7 @@ const ZSProvider = (() => {
     if (relock) ed.setAttribute("contenteditable", "true"); // injection needs it editable
     try {
       await setEditorText(ed, text);
-      // Attach images LAST, right before the send click - see gemini.js/deepseek.js
+      // Attach images LAST, right before the send click - see gemini.js/kimi.js
       // typeAndSend for why (attaching first and then retyping the text can sever
       // the site's binding between the pending upload and the message sent).
       if (images && images.length) {
@@ -713,7 +713,7 @@ const ZSProvider = (() => {
     const arr = new Uint8Array(bin.length);
     for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
     const ext = mime.includes("png") ? "png" : "jpg";
-    return new File([arr], `zeroscript_${Date.now()}_${i}.${ext}`, { type: mime });
+    return new File([arr], `SharkNyx_${Date.now()}_${i}.${ext}`, { type: mime });
   }
   async function attachImages(images) {
     const ed = getEditor();
@@ -775,7 +775,7 @@ const ZSProvider = (() => {
   // producing a new picture instead of doing the Roblox work the image was
   // meant to illustrate. Its native image tool also runs in the sandbox that
   // cannot touch the user's project, so a generated image is a dead end here.
-  const PROMPT_EXTRA = `- WHEN THE USER SENDS AN IMAGE: by default it is REFERENCE MATERIAL for the work they want done in their project - a screenshot of a bug, a mockup of the UI they want, a photo of the thing to build, a picture of what is wrong in Studio. Look at it, use it to understand what they want, and then do that work with the ZeroScript commands. Do NOT generate a new image from it, and do NOT treat it as an image-editing request. Only generate an image when the user EXPLICITLY asks you to create, generate, draw or edit one ("make me an image of...", "generate a texture", "edit this picture"). If what they want from the image is genuinely unclear, ask them in one short sentence rather than guessing - and never guess "they want a picture".`;
+  const PROMPT_EXTRA = `- WHEN THE USER SENDS AN IMAGE: by default it is REFERENCE MATERIAL for the work they want done in their project - a screenshot of a bug, a mockup of the UI they want, a photo of the thing to build, a picture of what is wrong in Studio. Look at it, use it to understand what they want, and then do that work with the SharkNyx commands. Do NOT generate a new image from it, and do NOT treat it as an image-editing request. Only generate an image when the user EXPLICITLY asks you to create, generate, draw or edit one ("make me an image of...", "generate a texture", "edit this picture"). If what they want from the image is genuinely unclear, ask them in one short sentence rather than guessing - and never guess "they want a picture".`;
 
   // ── User-send interception ────────────────────────────────────────────────
   function installSendHooks(handlers) {
@@ -792,7 +792,7 @@ const ZSProvider = (() => {
         // This used to preventDefault + stopImmediatePropagation (ported from an
         // older, stricter pattern), which made a blank ChatGPT tab impossible to
         // type in until an agent was started - a regression against every other
-        // provider. Matches deepseek.js: "nudge only; never block plain chat".
+        // provider. Matches the provider-specific pattern: "nudge only; never block plain chat".
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return; // existing conversation → not ours to gate
           handlers.onBlockedAttempt();
@@ -915,7 +915,7 @@ const ZSProvider = (() => {
     // Exported for test-chatgpt.js (the Node smoke test drives it against a stub
     // DOM). The core reads replies through itemText/classifyText, not this.
     textWithout,
-    // Vision OFF, like DeepSeek's text-only Expert tab. ChatGPT's free tier caps
+    // Vision OFF, ChatGPT's free tier caps
     // image/file input separately from messages ("les fichiers, les images et
     // l'analyse sont indisponibles jusqu'à la réinitialisation de votre quota"),
     // so screen_capture would work sometimes and fail the rest of the time - the

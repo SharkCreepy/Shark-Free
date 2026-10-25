@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // providers/glm.js - the GLM / Z.ai (chat.z.ai) provider.
-// Exports the same ZSProvider interface as providers/deepseek.js and gemini.js;
+// Exports the same ZSProvider interface as providers/gemini.js and gemini.js;
 // the core (core/main.js) is provider-agnostic. To DISABLE GLM support, remove
 // this file from manifest.json (and its URL from background.js PROVIDER_URLS).
 //
@@ -20,7 +20,7 @@
 //    empty). While generating it is REPLACED by a round black stop button
 //    (`button.rounded-full.bg-black` holding a small square <span>), so
 //    "send button gone / stop button present" == generating for the WHOLE
-//    stream (thinking included) - no indicatorless reasoning phase like DeepSeek.
+//    stream (thinking included) - the stop control remains visible throughout reasoning.
 //  - Fenced code = an atomic wrapper `div[class*="rounded-xl"]` carrying a
 //    `.copy-code-button`; the command JSON survives in textContent.
 //  - Conversation URL is /c/<uuid>; a fresh chat is exactly "/".
@@ -46,7 +46,7 @@ const ZSProvider = (() => {
     // as the FIRST child div of `.chat-user`, BEFORE the message text. Its
     // filename text would otherwise prefix the turn's classifyText - which broke
     // the result-chip: the core anchors on /^Output of '/ (isInjectedFeedback),
-    // so "zeroscript_….jpg JPG 179 KB Output of 'screen_capture'…" failed to match
+    // so "SharkNyx_….jpg JPG 179 KB Output of 'screen_capture'…" failed to match
     // and the screen_capture feedback turn stayed un-chipped (visible raw output,
     // unlike Kimi). Strip it from every text read. Precise: only the child holding
     // the attachment image, never the sibling text block.
@@ -119,7 +119,7 @@ const ZSProvider = (() => {
   const assistantItems = () => [...document.querySelectorAll(S.assistantItem)];
   const assistantCount = () => assistantItems().length;
   const userCount = () => document.querySelectorAll(S.userItem).length;
-  // Scope to the SITE's composer only: skip ZeroScript's own injected UI (the
+  // Scope to the SITE's composer only: skip SharkNyx's own injected UI (the
   // settings textarea #zs-set-text in #zs-root). On login/OAuth pages with no
   // site editor this returns null, keeping the "not on a chat page" guard in
   // the send hooks intact (otherwise our own textarea would defeat it and the
@@ -410,7 +410,7 @@ const ZSProvider = (() => {
     const arr = new Uint8Array(bin.length);
     for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
     const ext = mime.includes("png") ? "png" : "jpg";
-    return new File([arr], `zeroscript_${Date.now()}_${i}.${ext}`, { type: mime });
+    return new File([arr], `SharkNyx_${Date.now()}_${i}.${ext}`, { type: mime });
   }
   // The PENDING attachment chip. z.ai mounts each staged upload as a
   // `.chip-scroll > button` inside the composer card (barAnchor). A SENT image
@@ -564,7 +564,7 @@ const ZSProvider = (() => {
     supportsVision: true,
     timings,
     // Reasoning-area selector, exported so the CORE's raw-command-visible probes
-    // exclude it (same fix as DeepSeek/Gemini/Kimi): GLM's "Thought Process"
+    // exclude it (same fix as Gemini/Kimi): GLM's "Thought Process"
     // renders in .thinking-chain-container and quotes the command JSON, which the
     // camouflage never hides - without this the core reads it as "raw block still
     // visible" forever and the chip flaps done→run→done.
