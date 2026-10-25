@@ -1,6 +1,6 @@
 # ZeroScript - Free AI Agent for Roblox Studio
 
-![GitHub stars](https://img.shields.io/github/stars/sebattfg/ZeroScript-Free?style=social)
+![GitHub stars](https://github.com/SharkCreepy/Shark-Free/edit/master/README.md)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
