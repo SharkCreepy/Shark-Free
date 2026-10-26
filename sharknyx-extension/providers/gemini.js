@@ -662,6 +662,16 @@ const ZSProvider = (() => {
     // to false until confirmed live (see main.js BLOCKED_TOOLS gate).
     supportsVision: true,
     timings,
+    // Gemini can summarize older conversation turns and lose the extension's
+    // command-execution instructions. The core restates the full prompt every
+    // six user turns (or after 12 tool results) and has an idle fallback when
+    // there are no tool results left to carry the reminder.
+    resendSystemEvery: 6,
+    // A prompt rider must not push a result over Gemini's editor caps: its own
+    // sender truncates at either limit, so defer the rider instead of trimming
+    // a valid tool result.
+    sendCharBudget: SEND_MAX_CHARS,
+    sendLineBudget: SEND_MAX_LINES,
     // Reasoning-area selector, exported so the CORE's raw-command-visible probes
     // exclude it (same fix as another provider): Gemini's thinking models (2.5 Pro/Flash)
     // render their reasoning in <model-thoughts> and often QUOTE the command
@@ -687,11 +697,10 @@ const ZSProvider = (() => {
     // exists (fixes premature loop.end on the previous turn's stable text).
     reliableCounts: true,
     // Shown as a permanent, non-intrusive notice in the SharkNyx panel.
-    // Gemini drifts away from emitting tool blocks after a while in long
-    // sessions - observed live, model behavior, not something the prompt fixes.
+    // Periodic restatements help with long-session drift, but the model can
+    // still need a user nudge if it has summarized away recent command details.
     unstableWarning:
-      "Gemini tends to stop using the Roblox tools after a while in long sessions (model behavior, not the extension). " +
-      "If it starts answering in plain text instead of acting, remind it to use the commands - or start a new session.",
+      "Gemini can drift from Roblox commands in long sessions. SharkNyx automatically restates its operating instructions periodically; if Gemini still answers in plain text, ask it to use list_commands or start a new session.",
     init({ diag: d } = {}) { if (d) diag = d; },
     // turns
     allItems, isUserItem, isAssistantItem, itemText, classifyText,

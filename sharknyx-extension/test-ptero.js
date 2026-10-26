@@ -72,7 +72,8 @@ const chip = fakeElement("div", ["zs-chip"], ["execute_luau · 1s"]);
 const replyBody = fakeElement("div", ["chat-msg-text"], [fakeElement("p", [], ["Running the requested script."]), commandPre, chip]);
 const feedback = fakeElement("div", ["chat-feedback-bar"], ["Good response"]);
 const content = fakeElement("div", ["chat-msg-content"], [replyBody, feedback]);
-const assistantItem = fakeElement("div", ["chat-msg", "assistant"], [content], { dataset: { msgId: "a-1" } });
+const thinkingBody = fakeElement("div", ["chat-thinking-body"], ["Reasoning stays separate from the final answer."]);
+const assistantItem = fakeElement("div", ["chat-msg", "assistant"], [thinkingBody, content], { dataset: { msgId: "a-1" } });
 const turns = [userItem, assistantItem];
 const editor = fakeElement("textarea", [], [], { value: "" });
 const send = fakeElement("button", ["chat-send-btn"], [], { title: "Send" });
@@ -112,6 +113,18 @@ ok("provider identity and text-only capability", P.id === "ptero" && P.displayNa
 ok("Ptero user and assistant turns are recognized", P.isUserItem(userItem) && P.isAssistantItem(assistantItem));
 ok("message extraction preserves code and excludes SharkNyx UI", P.itemText(assistantItem).includes(commandText) && !P.itemText(assistantItem).includes("execute_luau · 1s"));
 ok("stable Ptero message id is exposed", P.lastAssistantId() === "a-1" && P.itemKey(assistantItem) === "a-1");
+const assistantState = P.readAssistant();
+ok("Ptero reasoning is extracted separately from the final reply", assistantState.thinking.includes("Reasoning stays separate") && !assistantState.reply.includes("Reasoning stays separate"));
+ok("Ptero reasoning contributes to live stream activity", P.isGenerating());
+ok("Ptero requests concise, exact-scope answers", /explanations brief/i.test(P.promptExtra) && /do not add unrequested/i.test(P.promptExtra));
+const assistantSelector = "#chat-messages .chat-msg.assistant";
+const savedAssistantItems = selectors[assistantSelector];
+const thinkingOnlyItem = fakeElement("div", ["chat-msg", "assistant"], [fakeElement("details", ["chat-thinking"], [fakeElement("div", ["chat-thinking-body"], ["Still reasoning."])])], { dataset: { msgId: "a-thinking" } });
+selectors[assistantSelector] = [thinkingOnlyItem];
+const thinkingOnlyState = P.readAssistant();
+ok("thinking-only Ptero output is not mistaken for a final answer", !thinkingOnlyState.reply && thinkingOnlyState.thinking === "Still reasoning.");
+ok("thinking-only Ptero output still counts as active stream content", P.isGenerating());
+selectors[assistantSelector] = savedAssistantItems;
 ok("Ptero local conversation id is used", P.conversationKey() === "ptero-chat-123");
 activeConversationId = null;
 ok("a fresh Ptero chat has an empty conversation key", P.conversationKey() === "");
@@ -122,6 +135,12 @@ const bareItem = fakeElement("div", ["chat-msg", "assistant"], [fakeElement("div
 P.findToolBlockSpot(bareItem);
 ok("unfenced command replies receive persistent whole-reply masking", bareBody.classList.contains("zs-cmd-mask-all"));
 ok("assistant snapshot reflects current reply length", P.snapshot().rp === P.itemText(assistantItem).length);
+const eofNotice = "The response stream ended before the provider returned a final answer. Please retry this message.";
+const eofItem = fakeElement("div", ["chat-msg", "assistant"], [fakeElement("div", ["chat-msg-content"], [fakeElement("div", ["chat-msg-text"], [eofNotice])])]);
+ok("Ptero's exact stream-ended notice is recognized", P.streamError(eofItem) === eofNotice);
+const partialNote = fakeElement("div", ["chat-stopped-note"], [eofNotice]);
+const partialItem = fakeElement("div", ["chat-msg", "assistant"], [fakeElement("div", ["chat-msg-content"], [fakeElement("div", ["chat-msg-text"], [commandText, partialNote])])]);
+ok("Ptero stream failure is recognized even after partial output", !!P.streamError(partialItem));
 
 // The Ptero send button clears the composer and appends a new user turn when
 // clicked, matching the app's observed acceptance signal.

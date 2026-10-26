@@ -17,6 +17,7 @@ const ZSProvider = (() => {
     userItem: "#chat-messages .chat-msg.user",
     assistantItem: "#chat-messages .chat-msg.assistant",
     reply: ".chat-msg-text",
+    thinking: ".chat-thinking-body",
     editor: "#chat-input",
     composer: "#chat-input-area",
     send: "#chat-send-btn",
@@ -35,6 +36,8 @@ const ZSProvider = (() => {
     STABLE_MS: 9000,
     RESPONSE_TIMEOUT_MS: 300000,
   };
+  const PROMPT_EXTRA = "Keep private reasoning private and visible explanations brief. Do exactly what the user requested: do not add unrequested objects, systems, scripts, or bonus features. Use only the necessary Roblox commands, avoid repeated or routine verification, and stop when the requested work is complete.";
+  const STREAM_END_NOTICE = /(?:The response stream ended before the provider returned a final answer|The provider ended without returning an answer)\.?\s*(?:Please retry this message\.)?/i;
 
   function matches(el, selector) {
     if (!el || !selector || !el.matches) return false;
@@ -71,6 +74,7 @@ const ZSProvider = (() => {
   const bodyOf = (item) => item && item.querySelector(S.reply);
   const itemText = (item) => textWithout(bodyOf(item));
   const classifyText = (item, excludeSel) => textWithout(bodyOf(item), excludeSel);
+  const thinkingText = (item) => textWithout(item && item.querySelector(S.thinking));
   const lastAssistant = () => {
     const items = assistantItems();
     return items.length ? items[items.length - 1] : null;
@@ -102,7 +106,7 @@ const ZSProvider = (() => {
   let streamItem = null;
   function sampleStream() {
     const item = lastAssistant();
-    const len = streamLen(item);
+    const len = streamLen(item) + thinkingText(item).length;
     const now = Date.now();
     if (item !== streamItem || len < streamMax - 400) {
       streamItem = item; streamMax = len; streamAt = now;
@@ -136,8 +140,16 @@ const ZSProvider = (() => {
   }
   function readAssistant() {
     const item = lastAssistant();
-    return item ? { present: true, reply: classifyText(item, ".zs-chip").trim(), thinking: "", item }
+    return item ? { present: true, reply: classifyText(item, ".zs-chip").trim(), thinking: thinkingText(item), item }
       : { present: false, reply: "", thinking: "", item: null };
+  }
+  function streamError(item = lastAssistant()) {
+    if (!item) return null;
+    const note = item.querySelector(".chat-stopped-note");
+    const noteText = note ? textWithout(note) : "";
+    if (noteText && STREAM_END_NOTICE.test(noteText)) return noteText;
+    const reply = itemText(item);
+    return reply.length <= 260 && STREAM_END_NOTICE.test(reply) ? reply : null;
   }
   const turnHalted = () => false;
   const findContinueBtn = () => null;
@@ -312,7 +324,8 @@ const ZSProvider = (() => {
     isGenerating, isBusyNow, isHardGenerating,
     enforceComposer, ensureComposerReady, modeWarning, captchaPresent, overlayBlocking,
     turnHalted, findContinueBtn, clickContinueBtn,
-    scanError, isTooLongMsg, isBusyMsg,
+    scanError, isTooLongMsg, isBusyMsg, streamError,
     conversationKey, installSendHooks, findToolBlockSpot,
+    promptExtra: PROMPT_EXTRA,
   };
 })();

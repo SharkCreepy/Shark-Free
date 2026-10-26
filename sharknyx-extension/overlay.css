@@ -125,7 +125,7 @@ html.zs-light #zs-bar.zs-bar-anchored {
   width: auto;
   /* The card's corner radius is 28px and the bar sits flush with its top edge,
      so the bar's outermost children land inside the corner arc. With the
-     generic 16px padding the Discord button ended up 8px from the card edge and
+     generic 16px padding the rightmost control ended up 8px from the card edge and
      7.3px from its top - its top-right corner falls OUTSIDE the rounded rect and
      was being sliced off by the card's `overflow-clip` (measured live). 24px
      puts both ends 16px in from the card edge, which clears the arc with room to
@@ -144,7 +144,7 @@ html.zs-light #zs-bar.zs-bar-anchored {
 
 /* Meta AI's composer card has a large corner radius (rounded-32 = 32px), so the
    full-width anchored bar's left/right ends run under the curve - the brand and
-   the Discord/switch/support icons crowd the rounding. Inset the content by ~the
+   the switch/support controls crowd the rounding. Inset the content by ~the
    radius so both edges clear the corners cleanly. */
 #zs-bar.zs-bar-anchored.zs-prov-meta { padding-left: 30px; padding-right: 30px; }
 
@@ -257,8 +257,8 @@ html.zs-light #zs-unstable {
 }
 #zs-stop[data-state="stopping"]:hover { background: #b45309; }
 
-/* bar controls: one neutral icon-button family (Discord, support, switch) */
-#zs-discord, #zs-support {
+/* support icon button */
+#zs-support {
   flex: none; width: 28px; height: 28px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.06); color: #b8b8bf;
@@ -266,7 +266,17 @@ html.zs-light #zs-unstable {
   cursor: pointer; text-decoration: none;
   transition: background 0.14s ease, color 0.14s ease;
 }
-#zs-discord:hover, #zs-support:hover { background: rgba(255, 255, 255, 0.11); color: #ededf0; }
+#zs-support:hover { background: rgba(255, 255, 255, 0.11); color: #ededf0; }
+
+/* Per-chat execution mode: compact selector beside the primary action. */
+#zs-mode {
+  flex: none; width: 78px; height: 28px; padding: 0 6px;
+  background: rgba(255, 255, 255, 0.06); color: #d0d0d6;
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+}
+#zs-mode:disabled { cursor: default; opacity: 0.78; }
+#zs-mode option { background: #161618; color: #ececee; }
 
 /* model switcher: names the current AI and opens the panel at Switch AI */
 #zs-switch {
@@ -560,6 +570,14 @@ message-content.zs-cmd-mask code-block { display: none !important; }
 /* Ptero.pro streams rendered Markdown into a stable .chat-msg-text node. */
 .chat-msg-text.zs-cmd-mask pre { display: none !important; }
 .chat-msg-text.zs-cmd-mask-all > *:not(.zs-chip) { display: none !important; }
+
+/* Claude's markdown response roots survive streaming; keep recreated tool code hidden. */
+.font-claude-response.zs-cmd-mask pre,
+.font-claude-message.zs-cmd-mask pre,
+.prose.zs-cmd-mask pre { display: none !important; }
+.font-claude-response.zs-cmd-mask-all > *:not(.zs-chip),
+.font-claude-message.zs-cmd-mask-all > *:not(.zs-chip),
+.prose.zs-cmd-mask-all > *:not(.zs-chip) { display: none !important; }
 
 /* Meta AI whole-turn chips (result / sys) alignment. A whole:true chip is pinned
    as a direct child of the TURN ROOT, but Meta's turn root is FULL width (~1608px)
@@ -954,15 +972,16 @@ html.zs-light #zs-state { color: #4b5563; }
 html.zs-light #zs-state b { color: #4f46e5; }
 html.zs-light #zs-state.zs-state-warn { color: #b91c1c; }
 html.zs-light #zs-bar.tone-active #zs-state b { color: #059669; }
-html.zs-light #zs-discord,
 html.zs-light #zs-support,
-html.zs-light #zs-switch {
+html.zs-light #zs-switch,
+html.zs-light #zs-mode {
   background: rgba(0, 0, 0, 0.05); color: #4b5563;
   border-color: rgba(0, 0, 0, 0.12);
 }
-html.zs-light #zs-discord:hover,
 html.zs-light #zs-support:hover,
-html.zs-light #zs-switch:hover { background: rgba(0, 0, 0, 0.09); color: #1f2430; }
+html.zs-light #zs-switch:hover,
+html.zs-light #zs-mode:hover { background: rgba(0, 0, 0, 0.09); color: #1f2430; }
+html.zs-light #zs-mode option { background: #fff; color: #1f2430; }
 html.zs-light #zs-action:disabled {
   background: rgba(0, 0, 0, 0.05); color: rgba(0, 0, 0, 0.35); border-color: rgba(0, 0, 0, 0.08);
 }

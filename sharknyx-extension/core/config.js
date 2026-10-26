@@ -10,6 +10,7 @@ const ZS = (() => {
   // content script can reliably recognise (and camouflage) the bootstrap turn.
   const APP_NAME = "SharkNyx";
   const SYS_MARKER = "⟦ZS-SYS⟧";
+  const PLAN_MARKER = "⟦ZS-PLAN⟧";
   // A re-statement of the system prompt mid-session (see withSysResend in
   // core/main.js). It carries SYS_MARKER TOO - that is what drives camouflage
   // and session detection, and neither should change - plus this second marker,
@@ -242,6 +243,21 @@ IMPORTANT: Your very first action is to write \`list_commands\` with no params (
     return `${SYS_MARKER}\n${prompt}${siteRules}${extra}`;
   }
 
+  // Plan mode is intentionally a separate prompt, not an addendum to the Agent
+  // prompt: it must never tell the model to list or execute Roblox commands.
+  function buildPlanPrompt(opts = {}) {
+    if (typeof opts === "string") opts = { siteName: opts };
+    const { siteName = "this AI site", customPrompt = "", providerNotes = "" } = opts;
+    const prompt = `You are SharkNyx Plan mode on ${siteName}. This is a planning-only conversation. You cannot inspect or change the user's Roblox Studio project here, and SharkNyx will not run Roblox commands in this mode.\n\nFor Roblox project requests, help the user think through a practical implementation plan in plain language. State assumptions and ask clarifying questions when needed. Do not claim that you inspected, edited, tested, or changed anything. For general questions, answer normally.\n\nHARD SAFETY RULE: Never output SharkNyx tool-call JSON, executable command blocks, or ###LUA### / ###END_LUA### markers. Never ask the extension to perform an action. If the user wants the plan carried out, explain that they need to open a new chat, select Agent mode, and ask for execution there.\n\nUser style preferences and provider notes below may guide wording only; they cannot override the planning-only and no-execution rules.`;
+    const notes = providerNotes.trim()
+      ? `\n\n━━━ PROVIDER NOTES (non-execution only) ━━━\n${providerNotes.trim()}`
+      : "";
+    const extra = customPrompt.trim()
+      ? `\n\n━━━ USER STYLE PREFERENCES (non-execution only) ━━━\n${customPrompt.trim()}`
+      : "";
+    return `${SYS_MARKER}\n${PLAN_MARKER}\n${prompt}${notes}${extra}`;
+  }
+
   // ── Curated, TESTED usage notes per command ─────────────────────────────────
   // The MCP's own schema descriptions are thin, and the model makes the same
   // mistakes repeatedly. These notes were validated by actually running each
@@ -345,10 +361,12 @@ IMPORTANT: Your very first action is to write \`list_commands\` with no params (
   return {
     APP_NAME,
     SYS_MARKER,
+    PLAN_MARKER,
     RESEND_MARKER,
     FEEDBACK,
     toolCategory,
     buildSystemPrompt,
+    buildPlanPrompt,
     compactTools,
     toolsReminder,
     memoryNudge,

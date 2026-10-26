@@ -2,6 +2,21 @@
 
 All notable changes to SharkNyx Free are documented here.
 
+## [1.0.0] - 2026-10-26 (version reset)
+
+### Added
+- **Agent and Plan modes:** choose a mode for each conversation. Plan mode drafts plans without requiring the Roblox bridge and blocks command execution; the selected mode is restored with its conversation.
+- **Claude.ai provider:** read Claude chat turns and streaming output and submit through its ProseMirror composer.
+- **Gemini long-session recovery:** periodically restate SharkNyx's operating instructions to help restore command use after long conversation summaries.
+
+### Fixed
+- **Ptero.pro:** account for its separate reasoning stream, avoid treating its incomplete-stream notice as a final answer, and use concise, exact-scope instructions.
+- **Gemini:** preserve the reminder when it would exceed the composer's character or line limits; defer it rather than truncate a tool result.
+
+### Changed
+- Removed the Discord invite control and removed old-brand text from the support link while preserving its short ID.
+- Bumped the extension manifest version to 1.0.0 as requested. This is a version reset; the previous public release was v1.5.6.
+
 ## [1.5.6] - 2026-10-25
 
 ### Added
@@ -73,7 +88,7 @@ All notable changes to SharkNyx Free are documented here.
   while the model is still writing, then settles red as "wrong format".
 - **ChatGPT: the SharkNyx bar no longer collides with the composer's rounded
   corners.** The composer card is rounded by 28px and the bar sits flush against
-  its top edge, so the Discord button's corner fell outside the rounded shape and
+  its top edge, so the rightmost control's corner fell outside the rounded shape and
   was sliced off by the card. Both ends of the bar are inset to clear the curve.
 
 ## [1.5.2] - 2026-08-14
@@ -659,7 +674,7 @@ stale-pipe disconnects, MCP toggle turning off after a Studio update).
 - `bridge.py` now runs a `.py` MCP command with the same Python interpreter as
   the bridge, so it works on installs where only the `py` launcher exists.
 
-## [1.0.0] - 2026-06-09
+## Initial public release - 2026-06-09 (original version 1.0.0)
 
 ### Added
 - Initial public release of SharkNyx Free

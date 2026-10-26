@@ -90,7 +90,7 @@
   const VIDEO_URL = "https://youtu.be/kPKiZLZ9_Ps";
   // Work.ink locked link - free "watch an ad" support option. Set once the
   // locker is created at https://work.ink; the button is hidden until then.
-  const WORKINK_URL = "https://work.ink/2JXi/zeroscript-free-roblox-ai-coding-tool";
+  const WORKINK_URL = "https://work.ink/2JXi";
   // Roblox "tip" Game Passes - the native currency for the audience.
   const ROBUX_PASSES = [
     { robux: 30, id: 1865342947 },
@@ -110,6 +110,7 @@
     { name: "Arena", url: "https://arena.ai/text/direct" },
     { name: "Meta AI", url: "https://www.meta.ai/" },
     { name: "Ptero.pro", url: "https://ptero.pro/" },
+    { name: "Claude", url: "https://claude.ai/new" },
   ];
 
   const A = {
@@ -130,6 +131,7 @@
     // generation - never on a historical turn rendered by opening/scrolling.
     lastGenAt: 0,
     started: false,
+    sessionMode: null,
     starting: false,
     // The conversation a bootstrap belongs to + a generation counter. If the user
     // navigates to another chat mid/post-bootstrap, syncSessionState bumps the
@@ -468,6 +470,12 @@
       const newReply = (curTok !== undefined && curTok !== null)
         ? (curTok !== A.sendToken)
         : P.assistantCount() > base;
+      const providerFailure = newReply && P.streamError ? P.streamError(d.item) : null;
+      if (providerFailure) {
+        diag("response.providerStreamEnded", { provider: P.id, notice: providerFailure.slice(0, 180) });
+        finalizeDiag("provider_error");
+        return { kind: "provider_error", detail: providerFailure, item: d.item };
+      }
 
       // Track whether the CURRENT turn has produced anything. Reset when the
       // turn node changes (the PREVIOUS turn's content never counts).
@@ -495,13 +503,14 @@
       }
 
       // Track text stability (independent of the generating flag). Compare the
-      // NORMALISED reply (collapsed whitespace) so cosmetic re-renders of a large
+      // NORMALISED answer + reasoning text (collapsed whitespace) so activity in
+      // either stream keeps the watcher alive while cosmetic re-renders of a large
       // reply - React re-creating the hidden tool <pre>, syntax-highlight passes,
       // copy-bar text churn - don't count as real "changes" and keep resetting
       // lastChangeAt. A churn-poisoned lastChangeAt was stalling finalisation of
       // big multi_edit blocks ~30s (stuckDone never fired); this can only ever
       // reduce false changes, so short replies / other providers are unaffected.
-      const replyNorm = (d.reply || "").replace(/\s+/g, " ").trim();
+      const replyNorm = `${d.reply || ""}\n${d.thinking || ""}`.replace(/\s+/g, " ").trim();
       if (replyNorm !== lastText) { lastText = replyNorm; lastChangeAt = Date.now(); lastActiveAt = Date.now(); }
       // How long the generating flag has been OFF. A mid-stream flicker resets
       // this the instant growth resumes and gen flips back on.
@@ -880,6 +889,10 @@
     const name = call.tool;
     const args = call.arguments || {};
     if (!name) return ZS.FEEDBACK.parseError("malformed");
+    if (A.sessionMode === "plan") {
+      diag("tool.blocked.planMode", { name });
+      return "PLAN MODE: No Roblox command was run. Give the user a plain-language plan instead; do not output executable commands.";
+    }
     // NEVER execute while the AI tab is backgrounded/minimized. This is the single
     // choke point for ALL execution (agentLoop's tool dispatch AND the bootstrap's
     // list_commands), so it closes the hole the loop-entry gate alone left open:
@@ -1214,6 +1227,10 @@
   //  AGENTIC LOOP
   // ════════════════════════════════════════════════════════════════════════
   async function agentLoop(base) {
+    if (!sessionModesHydrated && A.started && !A.starting) {
+      diag("loop.waitSessionMode");
+      await sessionModesReady;
+    }
     if (A.running) return;
     A.running = true;
     A.resumeArmed = false; // loop now owns the turn; drop the regenerate grace
@@ -1254,6 +1271,21 @@
         const res = await waitForResponse(base);
         diag("response", { kind: res.kind });
         if (A.stop || res.kind === "stopped") break;
+
+        if (res.kind === "provider_error") {
+          ui.banner("warn", `${P.displayName} response interrupted`,
+            `${P.displayName} ended the stream before a final answer. SharkNyx did not run a command from that incomplete reply. Retry once; if it repeats, try Ptero's Quick mode (if available) or another model. This appears to be a provider-side stream interruption.`);
+          break;
+        }
+
+        // Plan mode never dispatches command-shaped output. Do this before the
+        // normal parse-error/tool branches so no feedback path can execute it.
+        if (A.sessionMode === "plan" && (res.kind === "tool" || res.kind === "parse_error")) {
+          const blockedName = ZSParse.toolNameFromText(res.raw || res.text || "") || "command";
+          if (res.item) decorate.toolBox(res.item, blockedName, "err", "Plan mode · not run", true, "", ZS.toolCategory(blockedName));
+          ui.banner("warn", "Plan mode blocked a command", "No Roblox actions were run. Ask for a plain-language plan, or start a new chat in Agent mode to execute it.");
+          break;
+        }
 
         if (res.kind === "context_limit") {
           ui.banner("limit", `${P.displayName} reached its context limit`,
@@ -1617,11 +1649,14 @@
   // definition, used both by the bootstrap and by the periodic re-injection, so
   // the two can never drift apart.
   function systemPrompt() {
-    return ZS.buildSystemPrompt({
+    const options = {
       siteName: P.displayName,
       customPrompt: ui.getCustomPrompt(),
       providerNotes: P.promptExtra || "",
-    });
+    };
+    return A.sessionMode === "plan"
+      ? ZS.buildPlanPrompt(options)
+      : ZS.buildSystemPrompt(options);
   }
 
   // ── Periodic system-prompt re-injection (opt-in, per provider) ────────────
@@ -1773,9 +1808,12 @@
       "described. Just carry on with the task; do not acknowledge this note.)\n" +
       prompt;
     const cap = P.sendCharBudget || Infinity;
-    if (text.length + rider.length > cap) {
+    const lineCap = P.sendLineBudget || Infinity;
+    const lineCount = (value) => (String(value).match(/\n/g) || []).length + 1;
+    const combinedLines = lineCount(text) + lineCount(rider) - 1;
+    if (text.length + rider.length > cap || combinedLines > lineCap) {
       // Stays due - the next (smaller) result carries it.
-      diag("sys.resendDeferred", { result: text.length, rider: rider.length, cap });
+      diag("sys.resendDeferred", { result: text.length, rider: rider.length, cap, lines: combinedLines, lineCap });
       return text;
     }
     const spent = sinceLastSys();
@@ -1796,6 +1834,7 @@
       ui.toast("Open a new, empty conversation to start a session.");
       return;
     }
+    A.sessionMode = ui.getMode();
     A.userStopped = false;
     A.stop = false;               // clear any halt left by a prior aborted bootstrap
     // Snapshot any turn already on screen at session start (normally none on a
@@ -1813,14 +1852,16 @@
     P.setInputLock(true); // block user input during bootstrap
     ui.inputCover(true);  // cover the composer ("Working…") for the WHOLE Starting Up
     try {
-      await ensureTools(true); // boot: always take a fresh catalogue (the TTL then
-                               // covers the list_commands / list_mcp_servers calls
-                               // the model makes seconds later)
-      if (!alive()) return;
-      if (!A.toolList.length) {
-        ui.banner("warn", "Bridge or Studio offline",
-          "Could not fetch Roblox tools. Run start.bat and make sure Roblox Studio is open, then try again.");
-        return;
+      if (A.sessionMode !== "plan") {
+        await ensureTools(true); // boot: always take a fresh catalogue (the TTL then
+                                 // covers the list_commands / list_mcp_servers calls
+                                 // the model makes seconds later)
+        if (!alive()) return;
+        if (!A.toolList.length) {
+          ui.banner("warn", "Bridge or Studio offline",
+            "Could not fetch Roblox tools. Run start.bat and make sure Roblox Studio is open, then try again.");
+          return;
+        }
       }
       const modeState = await P.ensureComposerReady("startup");
       if (!alive()) return;
@@ -1843,7 +1884,7 @@
 
       // If the model calls list_commands as instructed, run it and wait for the "ready" reply.
       const firstName = startRes.calls && startRes.calls[0] && startRes.calls[0].tool;
-      if (startRes.kind === "tool" && startRes.calls && startRes.calls.length === 1 &&
+      if (A.sessionMode !== "plan" && startRes.kind === "tool" && startRes.calls && startRes.calls.length === 1 &&
           (firstName === "list_commands" || firstName === "list_tools")) {
         decorate.toolBox(startRes.item, "Loading commands", "run", "", true);
         const toolFeedback = await runTool(startRes.calls[0]);
@@ -1869,16 +1910,24 @@
         if (!alive()) return;
         if (A.stop || readyRes.kind === "stopped") { diag("start.aborted", { kind: readyRes.kind }); return; }
       }
+      if (A.sessionMode === "plan" && (startRes.kind === "tool" || startRes.kind === "parse_error")) {
+        const blockedName = ZSParse.toolNameFromText(startRes.raw || startRes.text || "") || "command";
+        if (startRes.item) decorate.toolBox(startRes.item, blockedName, "err", "Plan mode · not run", true, "", ZS.toolCategory(blockedName));
+        ui.banner("warn", "Plan mode blocked a command", "No Roblox actions were run. Ask for a plain-language plan, or start a new chat in Agent mode to execute it.");
+      }
       A.started = true;
-      rememberSession(P.conversationKey()); // survives virtualization AND reloads
+      rememberSession(P.conversationKey(), A.sessionMode); // survives virtualization AND reloads
       ui.setStarted(true);
-      ui.toast(`Agent ready. Ask ${P.displayName} to build something in Roblox.`);
+      ui.toast(A.sessionMode === "plan"
+        ? `Plan mode ready. No Roblox commands will run.`
+        : `Agent ready. Ask ${P.displayName} to build something in Roblox.`);
     } catch (e) {
       if (alive()) ui.banner("warn", "Startup failed", String((e && e.message) || e));
     } finally {
       // Only tear down our OWN starting state. If we were superseded (the user
       // opened another chat), the newer flow / syncSessionState owns it now.
       if (alive()) {
+        if (!A.started) A.sessionMode = null;
         A.starting = false;
         A.startingKey = null;
         ui.setStarting(false);
@@ -2504,8 +2553,10 @@
   //  UI  (control panel, onboarding, stop button, banners, toast, input cover)
   // ════════════════════════════════════════════════════════════════════════
   const ui = (() => {
-    let root, bar, dot, brandEl, stateEl, actionBtn, stopBtn, switchBtn, supportBtn, discordEl, menuEl, unstableEl;
+    let root, bar, dot, brandEl, stateEl, actionBtn, stopBtn, switchBtn, supportBtn, modeSelect, menuEl, unstableEl;
     let cover, coverRaf, barRaf;
+    let selectedMode = "agent";
+    let userTouchedMode = false;
     let openMenuFn = null; // set by build(); lets the popup force the panel open via runtime message
     let bridgeOk = false, studioDown = false, placeDown = false, appDown = false, addonOk = false, studioProcUp = false;
     let wasConnected = false, bridgeBannerEl = null;
@@ -2515,17 +2566,17 @@
       root.id = "zs-root";
       // One consolidated status bar, anchored just above the site's composer
       // (positioned every frame by placeBar). It carries everything: live status,
-      // the primary action (Start / Stop) and a "more"
-      // menu (other AI sites, custom prompt, support, Discord). No floating panel,
+      // the primary action (Start / Stop), a mode selector and a "more"
+      // menu (other AI sites, custom prompt, support). No floating panel,
       // no overlay on the input - the composer stays fully usable for plain chat.
       root.innerHTML = `
         <div id="zs-bar">
           <span id="zs-dot" class="off" title=""></span>
           <span id="zs-brand">SharkNyx <span class="zs-free">v${EXT_VERSION}</span></span>
           <span id="zs-state"></span>
+          <select id="zs-mode" aria-label="SharkNyx mode" title="Choose Agent or Plan mode"><option value="agent">Agent</option><option value="plan">Plan</option></select>
           <button id="zs-action"></button>
           <button id="zs-stop" hidden>■ Stop</button>
-          <a id="zs-discord" href="https://discord.gg/D5G2HAzX8z" target="_blank" rel="noopener" title="Need help? Join our Discord"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg></a>
           <button id="zs-switch" aria-label="Switch AI and options" title="Switch AI, custom prompt, support"><span id="zs-switch-name"></span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
           <button id="zs-support" aria-label="Support SharkNyx" title="Support SharkNyx"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>
         </div>
@@ -2541,7 +2592,8 @@
       stopBtn = root.querySelector("#zs-stop");
       switchBtn = root.querySelector("#zs-switch");
       supportBtn = root.querySelector("#zs-support");
-      discordEl = root.querySelector("#zs-discord");
+      modeSelect = root.querySelector("#zs-mode");
+      modeSelect.value = selectedMode;
       const swName = root.querySelector("#zs-switch-name");
       if (swName) swName.textContent = P.displayName || P.id;
       menuEl = root.querySelector("#zs-menu");
@@ -2553,6 +2605,14 @@
 
       actionBtn.addEventListener("click", onActionClick);
       stopBtn.addEventListener("click", stopLoop);
+      modeSelect.addEventListener("change", () => {
+        if (A.started || A.starting) return;
+        userTouchedMode = true;
+        selectedMode = modeSelect.value === "plan" ? "plan" : "agent";
+        try { chrome.storage.local.set({ zsModePreference: selectedMode }); } catch {}
+        refreshSetup(bridgeOk);
+        renderBar();
+      });
       unstableEl = root.querySelector("#zs-unstable");
       if (unstableEl) {
         // Set the native tooltip via PROPERTY, not the HTML template: the warning
@@ -2605,7 +2665,7 @@
     // (set by renderBar via actionBtn.dataset.kind).
     function onActionClick() {
       const kind = actionBtn.dataset.kind;
-      if (kind === "start" || kind === "start-degraded") startSession();
+      if (kind === "start" || kind === "start-degraded" || kind === "start-plan") startSession();
     }
 
     // ── Custom prompt (persisted) ───────────────────────────────────────────
@@ -2613,6 +2673,15 @@
     // appended UNDER the system prompt at session start. Cached here so
     // startSession can read it synchronously.
     let customPrompt = "";
+    try {
+      chrome.storage.local.get("zsModePreference", (r) => {
+        if (!userTouchedMode && r && (r.zsModePreference === "agent" || r.zsModePreference === "plan"))
+          selectedMode = r.zsModePreference;
+        if (modeSelect) modeSelect.value = selectedMode;
+        refreshSetup(bridgeOk);
+        renderBar();
+      });
+    } catch {}
     try {
       chrome.storage.local.get("zsCustomPrompt", (r) => {
         if (r && typeof r.zsCustomPrompt === "string") {
@@ -2916,7 +2985,7 @@
     }
 
     function refreshSetup(bridgeConnected) {
-      if (setupSeen || bridgeConnected) { hideSetup(); return; }
+      if (selectedMode === "plan" || A.sessionMode === "plan" || setupSeen || bridgeConnected) { hideSetup(); return; }
       // Bridge is down, but if the user is just READING an existing
       // conversation with no SharkNyx session (the "No agent here" state),
       // a "bridge down" onboarding popup is pure noise - they may not want an
@@ -2935,6 +3004,11 @@
     //  • existing chat    → "No agent in this chat" (informs only, no action)
     function renderBar() {
       if (!bar) return;
+      if (modeSelect) {
+        modeSelect.value = A.started || A.starting ? (A.sessionMode || selectedMode) : selectedMode;
+        modeSelect.disabled = !!(A.started || A.starting || A.running);
+        modeSelect.title = modeSelect.disabled ? "Mode is fixed for this chat; choose again in a new chat." : "Choose Agent or Plan mode";
+      }
       // indicator = an optional leading dot/spinner; msg = the wrappable text.
       let toneClass = "standby", indicator = "", msg = "", label = "", kind = "", disabled = false, warn = false;
       // Orphaned page: check FIRST and return. Nothing below can be true any
@@ -2956,8 +3030,11 @@
       else if (A.starting) {
         toneClass = "starting";
         indicator = `<span class="zs-spin"></span>`;
-        msg = `Starting the Roblox agent…`;
+        msg = A.sessionMode === "plan" ? `Starting Plan mode…` : `Starting the Roblox agent…`;
         label = "Starting…"; kind = "starting"; disabled = true;
+      } else if (A.started && A.sessionMode === "plan") {
+        toneClass = "active";
+        msg = `<b>Plan mode active</b> · no Roblox commands will run`;
       } else if (A.started) {
         // Prefer the ADVERTISED list length (A.toolList - the AGGREGATE catalogue
         // across every connected MCP server, already filtered by the vision/blocked
@@ -3014,7 +3091,11 @@
         // which used to drop into the discouraging "No agent here" branch on a page
         // that is actually empty and startable. "No agent here" is only correct for
         // an EXISTING conversation (one that has turns) we did not start.
-        if (bridgeOk) {
+        if (selectedMode === "plan") {
+          toneClass = "standby";
+          msg = `Plan mode · planning only; no Roblox actions will run.`;
+          label = "▶︎ Start Plan"; kind = "start-plan";
+        } else if (bridgeOk) {
           toneClass = "standby";
           msg = `Standby. Start the agent, or just chat.`;
           label = "▶︎ Start Roblox agent"; kind = "start";
@@ -3044,7 +3125,7 @@
                     : `Open <b>Roblox Studio</b> for the tools.`;
           label = "▶︎ Start Roblox agent"; kind = "start";
         }
-        disabled = !bridgeOk && !addonOk;
+        disabled = selectedMode !== "plan" && !bridgeOk && !addonOk;
       } else {
         toneClass = "noagent";
         msg = `No agent here. Open a new chat to start one.`;
@@ -3068,21 +3149,21 @@
         const modeWarn = P.modeWarning();
         if (modeWarn) {
           toneClass = "warn"; warn = true; msg = modeWarn;
-          if (kind === "start" || kind === "start-degraded") disabled = true;
+          if (kind === "start" || kind === "start-degraded" || kind === "start-plan") disabled = true;
         }
       }
       // Only touch the DOM when something actually changed. renderBar runs on
       // every sweep; rewriting stateEl.innerHTML each time recreated the spinner
       // <span> and RESTARTED its CSS animation, so "Starting…" appeared to stutter.
       const busy = !stopBtn.hidden;
-      // Before a session is started, the bar stays minimal: only the Start action
-      // + Discord (help). The AI selector and the tips/support menu appear once the
+      // Before a session is started, the bar stays minimal: mode + Start action.
+      // The AI selector and the tips/support menu appear once the
       // agent is actually running - so the pre-start bar isn't cluttered with
       // options that only matter mid-session. (A.started is ambiguous with `warn`
       // tone - which occurs both started-with-bridge-down and standby-with-bridge-
       // down - so it's tracked explicitly in the signature.)
       const showExtras = !!A.started;
-      const sig = [toneClass, indicator, msg, label, kind, disabled, warn, busy, showExtras].join("|");
+      const sig = [toneClass, indicator, msg, label, kind, disabled, warn, busy, showExtras, selectedMode, A.sessionMode].join("|");
       if (sig === lastBarSig) return;
       lastBarSig = sig;
       // Set the tone WITHOUT clobbering other classes (e.g. zs-bar-inline, which
@@ -3099,8 +3180,7 @@
       // With no kind (e.g. agent active, or an existing chat) there's no primary
       // action to offer, so the button is hidden entirely.
       actionBtn.style.display = (busy || !kind) ? "none" : "";
-      // AI selector + tips/support: only once a session is live. Discord stays
-      // visible in every state (it's the help link).
+      // AI selector + tips/support appear once a session is live.
       if (switchBtn) switchBtn.style.display = showExtras ? "" : "none";
       if (supportBtn) supportBtn.style.display = showExtras ? "" : "none";
     }
@@ -3750,7 +3830,7 @@
     }
 
     build();
-    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
+    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getMode: () => A.started ? (A.sessionMode || selectedMode) : selectedMode, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
   })();
 
   // ── Live token + timer, shown ONLY on a tool call's chip detail. The
@@ -4039,26 +4119,47 @@
   // (P.conversationKey()): once we have seen the marker for a key, we remember
   // it (persisted so it survives reloads). We never flip while busy.
   const startedSessions = new Set();
+  const sessionModes = new Map();
+  let sessionModesHydrated = false;
+  let resolveSessionModes;
+  const sessionModesReady = new Promise((resolve) => { resolveSessionModes = resolve; });
   let lastSyncPath = null;
-  function rememberSession(path) {
+  function rememberSession(path, mode) {
     // A falsy key = a TRANSIENT conversation URL (e.g. Gemini's /app before an
     // id is assigned). Remembering it would mark every future fresh chat as
     // "already started" and kill the Start gate. The real key is remembered by
     // the next sync once the site assigns the conversation its id.
     if (!path) return;
-    if (startedSessions.has(path)) return;
-    startedSessions.add(path);
-    try { chrome.storage.local.set({ zsStartedSessions: [...startedSessions].slice(-300) }); } catch {}
+    let changed = false;
+    if (!startedSessions.has(path)) { startedSessions.add(path); changed = true; }
+    if ((mode === "agent" || mode === "plan") && sessionModes.get(path) !== mode) {
+      sessionModes.set(path, mode);
+      changed = true;
+    }
+    if (!changed) return;
+    const modes = [...sessionModes].slice(-300);
+    try {
+      chrome.storage.local.set({
+        zsStartedSessions: [...startedSessions].slice(-300),
+        zsSessionModes: Object.fromEntries(modes),
+      });
+    } catch {}
   }
   // Load the persisted set once, then re-sync.
   try {
-    chrome.storage.local.get("zsStartedSessions", (r) => {
+    chrome.storage.local.get(["zsStartedSessions", "zsSessionModes"], (r) => {
       if (r && Array.isArray(r.zsStartedSessions)) {
         for (const p of r.zsStartedSessions) startedSessions.add(p);
-        syncSessionState();
       }
+      if (r && r.zsSessionModes && typeof r.zsSessionModes === "object") {
+        for (const [path, mode] of Object.entries(r.zsSessionModes))
+          if (mode === "agent" || mode === "plan") sessionModes.set(path, mode);
+      }
+      sessionModesHydrated = true;
+      resolveSessionModes();
+      syncSessionState();
     });
-  } catch {}
+  } catch { sessionModesHydrated = true; resolveSessionModes(); }
   // A conversation IS a SharkNyx session if any rendered turn carries a
   // telltale artefact: the system-prompt marker, an injected tool-result /
   // system-note turn, or a SharkNyx command an assistant wrote. Works even
@@ -4083,6 +4184,12 @@
       // by this heuristic.
     }
     return false;
+  }
+  function domSessionMode() {
+    for (const it of P.allItems()) {
+      if ((it.textContent || "").includes(ZS.PLAN_MARKER)) return "plan";
+    }
+    return null;
   }
   function syncSessionState() {
     // While a bootstrap runs, track its conversation. The bootstrap chat gets a
@@ -4129,8 +4236,9 @@
     }
     if (A.starting || A.injecting || A.running) return;
     const path = P.conversationKey();
+    const pathChanged = path !== lastSyncPath;
     const markerInDom = domHasZsSignal();
-    if (markerInDom) rememberSession(path);
+    if (markerInDom) rememberSession(path, domSessionMode() || (path && sessionModes.get(path)) || null);
     let has;
     if (path && path === lastSyncPath) {
       // SAME, REAL conversation: never downgrade a known-started session just
@@ -4146,9 +4254,18 @@
       has = markerInDom || (!!path && startedSessions.has(path));
       lastSyncPath = path;
     }
-    if (has !== A.started) {
-      A.started = has;
-      ui.setStarted(has);
+    if (has) {
+      const restoredMode = domSessionMode() || (path && sessionModes.get(path)) || "agent";
+      if (path) rememberSession(path, restoredMode);
+      if (has !== A.started || pathChanged || A.sessionMode !== restoredMode) {
+        A.started = true;
+        A.sessionMode = restoredMode;
+        ui.setStarted(true);
+      }
+    } else if (A.started || A.sessionMode) {
+      A.started = false;
+      A.sessionMode = null;
+      ui.setStarted(false);
     }
   }
 
@@ -4289,7 +4406,7 @@
   // spontaneously fires a command on some later unrelated DOM churn.
   const RESUME_FRESH_MS = 180000;
   setInterval(() => {
-    if (!A.started || A.running || A.starting || A.injecting) return;
+    if (!sessionModesHydrated || A.sessionMode === "plan" || !A.started || A.running || A.starting || A.injecting) return;
     if (document.hidden) return;                         // AI tab not foreground → don't parse/exec off-screen (agentLoop gates too)
     if (A.userStopped) return;                          // user halted → never relaunch
     if (P.isGenerating()) return;
