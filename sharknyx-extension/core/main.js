@@ -111,6 +111,7 @@
     { name: "Meta AI", url: "https://www.meta.ai/" },
     { name: "Ptero.pro", url: "https://ptero.pro/" },
     { name: "Claude", url: "https://claude.ai/new" },
+    { name: "Viro", url: "https://ai.viro.app/chat" },
   ];
 
   const A = {

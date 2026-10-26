@@ -2,6 +2,11 @@
 
 All notable changes to SharkNyx Free are documented here.
 
+## [1.0.1] - 2026-10-26
+
+### Added
+- **Viro provider:** integrate Viro's logged-in web chat using its visible message-role markers, composer, and send/stop controls. Register Viro in the extension's supported-site lists and add provider smoke tests.
+
 ## [1.0.0] - 2026-10-26 (version reset)
 
 ### Added

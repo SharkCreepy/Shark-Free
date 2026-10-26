@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SharkNyx Free × Roblox Studio Agent",
-  "version": "1.0.0",
-  "description": "Turn ChatGPT, Gemini, Kimi, GLM, Qwen, Arena, Meta AI, Ptero.pro or Claude into a Roblox Studio agent that drives Studio through a local bridge.",
+  "version": "1.0.1",
+  "description": "Turn ChatGPT, Gemini, Kimi, GLM, Qwen, Arena, Meta AI, Ptero.pro, Claude or Viro into a Roblox Studio agent that drives Studio through a local bridge.",
   "permissions": [
     "storage"
   ],
@@ -17,6 +17,7 @@
     "https://arena.ai/*",
     "https://ptero.pro/*",
     "https://claude.ai/*",
+    "https://ai.viro.app/*",
     "https://www.meta.ai/*",
     "https://meta.ai/*",
     "http://127.0.0.1/*",
@@ -167,6 +168,21 @@
         "core/config.js",
         "core/parser.js",
         "providers/claude.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://ai.viro.app/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/viro.js",
         "core/main.js"
       ],
       "css": [

@@ -3,7 +3,7 @@ const KOFI_URL = "https://ko-fi.com/sebattfg";
 const SUPPORTED_HOSTS = [
   "chatgpt.com", "chat.openai.com",
   "gemini.google.com", "www.kimi.ai", "kimi.ai",
-  "chat.z.ai", "chat.qwen.ai", "arena.ai", "ptero.pro", "claude.ai", "www.meta.ai", "meta.ai",
+  "chat.z.ai", "chat.qwen.ai", "arena.ai", "ptero.pro", "claude.ai", "ai.viro.app", "www.meta.ai", "meta.ai",
 ];
 const DEFAULT_AI_URL = "https://chatgpt.com/";
 
