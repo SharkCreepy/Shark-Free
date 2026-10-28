@@ -360,6 +360,11 @@ button.zs-site-opt:hover .zs-site-go { opacity: 1; transform: translateX(0); }
   flex: none; font-size: 10px; font-weight: 500; color: #7a7a82;
   border: 1px solid rgba(255, 255, 255, 0.12); padding: 1px 7px; border-radius: 5px;
 }
+.zs-site-badge-dir { font-size: 9px; }
+.zs-pick-label {
+  margin: 8px 10px 2px; color: #777780; font-size: 9px;
+  font-weight: 700; letter-spacing: 0.55px; text-transform: uppercase;
+}
 
 #zs-set-text {
   width: 100%; box-sizing: border-box; resize: vertical; min-height: 58px;
@@ -578,11 +583,6 @@ message-content.zs-cmd-mask code-block { display: none !important; }
 .font-claude-response.zs-cmd-mask-all > *:not(.zs-chip),
 .font-claude-message.zs-cmd-mask-all > *:not(.zs-chip),
 .prose.zs-cmd-mask-all > *:not(.zs-chip) { display: none !important; }
-
-/* Viro's React chat messages use .v2-message[data-role]; keep recreated tool
-   code hidden during streaming and mask command-only unfenced replies. */
-.v2-message.zs-cmd-mask pre { display: none !important; }
-.v2-message.zs-cmd-mask-all > *:not(.zs-chip) { display: none !important; }
 
 /* Meta AI whole-turn chips (result / sys) alignment. A whole:true chip is pinned
    as a direct child of the TURN ROOT, but Meta's turn root is FULL width (~1608px)
@@ -1033,6 +1033,7 @@ html.zs-light .zs-site-host { color: #9ca3af; }
 html.zs-light button.zs-site-opt:hover { background: rgba(0, 0, 0, 0.05); }
 html.zs-light .zs-site-badge { color: #6b7280; border-color: rgba(0, 0, 0, 0.14); }
 html.zs-light .zs-site-go { color: #9ca3af; }
+html.zs-light .zs-pick-label { color: #6b7280; }
 html.zs-light #zs-set-save,
 html.zs-light #zs-mcp-add,
 html.zs-light .zs-tip-opt {

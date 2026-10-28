@@ -775,7 +775,7 @@ const ZSProvider = (() => {
   // producing a new picture instead of doing the Roblox work the image was
   // meant to illustrate. Its native image tool also runs in the sandbox that
   // cannot touch the user's project, so a generated image is a dead end here.
-  const PROMPT_EXTRA = `- WHEN THE USER SENDS AN IMAGE: by default it is REFERENCE MATERIAL for the work they want done in their project - a screenshot of a bug, a mockup of the UI they want, a photo of the thing to build, a picture of what is wrong in Studio. Look at it, use it to understand what they want, and then do that work with the SharkNyx commands. Do NOT generate a new image from it, and do NOT treat it as an image-editing request. Only generate an image when the user EXPLICITLY asks you to create, generate, draw or edit one ("make me an image of...", "generate a texture", "edit this picture"). If what they want from the image is genuinely unclear, ask them in one short sentence rather than guessing - and never guess "they want a picture".`;
+  const PROMPT_EXTRA = "Treat screenshots as references for the requested Studio work. Do not generate or edit an image unless explicitly asked. If the image request is unclear, ask briefly.";
 
   // ── User-send interception ────────────────────────────────────────────────
   function installSendHooks(handlers) {

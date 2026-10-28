@@ -2,6 +2,29 @@
 
 All notable changes to SharkNyx Free are documented here.
 
+## [1.1.1] - 2026-10-28
+
+### Fixed
+- **Groq provider URL:** use the user's correct `https://console.groq.com/chat` page and its “Ask Groq” composer, send icon, and message wrappers. Update extension permissions, site detection, documentation, and smoke tests.
+- Bump the local extension version to 1.1.1 for testing; no GitHub release was published.
+
+## [1.1.0] - 2026-10-28
+
+### Added
+- **Duck.ai and Groq Chat providers:** add both sites to the supported provider list and use shared, site-specific chat adapters.
+- **Claude screenshots:** forward captured Studio screenshots through Claude's image-upload input and verify that a composer preview appears before sending.
+- **AI directory:** show free chat sites, usage-limit notes, coding/building picks, and cautious longer-session suggestions. DeepSeek is listed as a website only, not a SharkNyx provider.
+
+### Changed
+- Remove Viro from the supported providers.
+- Shorten Agent/Plan and provider-specific instructions, and ask all providers for brief, plain-language answers to reduce unnecessary token use.
+- Bump the local extension version to 1.1.0 for pre-release testing.
+
+## [1.0.2] - 2026-10-26
+
+### Fixed
+- **Viro command handoff:** read command JSON directly from rendered Markdown code blocks when the normal DOM text walk misses it, and mask the recovered block. Add an end-to-end regression for Viro's visible `list_commands` bootstrap reply.
+
 ## [1.0.1] - 2026-10-26
 
 ### Added

@@ -36,7 +36,7 @@ const ZSProvider = (() => {
     STABLE_MS: 9000,
     RESPONSE_TIMEOUT_MS: 300000,
   };
-  const PROMPT_EXTRA = "Keep private reasoning private and visible explanations brief. Do exactly what the user requested: do not add unrequested objects, systems, scripts, or bonus features. Use only the necessary Roblox commands, avoid repeated or routine verification, and stop when the requested work is complete.";
+  const PROMPT_EXTRA = "Keep visible explanations brief. Do not add unrequested features. Use the fewest necessary commands and stop when done.";
   const STREAM_END_NOTICE = /(?:The response stream ended before the provider returned a final answer|The provider ended without returning an answer)\.?\s*(?:Please retry this message\.)?/i;
 
   function matches(el, selector) {

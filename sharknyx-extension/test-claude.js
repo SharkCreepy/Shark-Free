@@ -96,6 +96,16 @@ const assistant = fakeElement("div", [], [replyRoot], {
 });
 const turns = [user, assistant];
 const editor = fakeElement("div", ["ProseMirror"], [], { attributes: { contenteditable: "true", "data-placeholder": "Reply to Claude" } });
+const fileInput = fakeElement("input", [], [], { attributes: { type: "file", accept: "image/*" } });
+fileInput.files = [];
+const form = fakeElement("form", [], [editor, fileInput]);
+fileInput.dispatchEvent = () => {
+  if (!form.querySelector("img")) {
+    const preview = fakeElement("img");
+    preview.parentElement = form;
+    form.childNodes.push(preview);
+  }
+};
 const send = fakeElement("button", [], [], { attributes: { "aria-label": "Send message" } });
 const controls = [send];
 const allSelector = '[data-testid="user-message"], [data-is-streaming]';
@@ -112,9 +122,19 @@ const selectors = {
 global.innerHeight = 1000;
 global.location = { pathname: "/chat/claude-chat-123" };
 global.Event = class { constructor(type, options) { this.type = type; this.options = options; } };
+global.File = class { constructor(parts, name, options = {}) { this.parts = parts; this.name = name; this.type = options.type || ""; } };
+global.DataTransfer = class {
+  constructor() {
+    this._files = [];
+    const self = this;
+    this.items = { add(file) { self._files.push(file); }, get length() { return self._files.length; } };
+  }
+  get files() { return this._files; }
+};
 global.document = {
   querySelector(selector) {
     if (selector === "div.ProseMirror[contenteditable], [contenteditable][data-placeholder]") return editor;
+    if (selector === 'input[type="file"][accept*="image" i]' || selector === 'input[type="file"]') return fileInput;
     if (selector === 'button[aria-label="Send message"], button[aria-label*="Send" i]') return controls.find((c) => c === send) || null;
     if (selector === 'button[aria-label*="Stop" i], button[title*="Stop" i]') return controls.find((c) => c !== send) || null;
     if (selector === '[data-is-streaming="true"]') return turns.find((item) => item.getAttribute("data-is-streaming") === "true") || null;
@@ -144,7 +164,7 @@ const ok = (name, condition) => {
   if (!condition) process.exitCode = 1;
 };
 
-ok("provider identity and conservative vision capability", P.id === "claude" && P.displayName === "Claude" && P.supportsVision === false);
+ok("provider identity and screenshot vision capability", P.id === "claude" && P.displayName === "Claude" && P.supportsVision === true);
 ok("Claude user and assistant turns are recognized", P.isUserItem(user) && P.isAssistantItem(assistant));
 ok("Claude reply extraction preserves prose and code", P.itemText(assistant).includes("requested obby") && P.itemText(assistant).includes('"command"'));
 ok("Claude message ID and conversation URL are exposed", P.lastAssistantId() === "a-1" && P.conversationKey() === "claude-chat-123");
@@ -166,6 +186,7 @@ send.click = () => {
   selectors[userSelector] = [...selectors[userSelector], nextUser];
 };
 (async () => {
-  await P.typeAndSend("bootstrap\nsecond line");
+  await P.typeAndSend("bootstrap\nsecond line", [{ data: "aGk=", mimeType: "image/png" }]);
   ok("ProseMirror text is submitted and accepted", editor.childNodes.length === 0 && P.userCount() === 2);
+  ok("captured screenshot is staged through the Claude file input", fileInput.files.length === 1 && form.querySelectorAll("img").length === 1);
 })();

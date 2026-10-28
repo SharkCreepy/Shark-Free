@@ -111,8 +111,23 @@
     { name: "Meta AI", url: "https://www.meta.ai/" },
     { name: "Ptero.pro", url: "https://ptero.pro/" },
     { name: "Claude", url: "https://claude.ai/new" },
-    { name: "Viro", url: "https://ai.viro.app/chat" },
+    { name: "Duck.ai", url: "https://duck.ai/" },
+    { name: "Groq Chat", url: "https://console.groq.com/chat" },
   ];
+  // DeepSeek remains a directory link only (its SharkNyx provider was removed).
+  // Free quotas change and are not directly comparable; do not label any site
+  // unlimited. Duck.ai publicly documents a daily cap; other sites vary by account.
+  const FREE_AI_SITES = [
+    { name: "Groq Chat", url: "https://console.groq.com/chat", usage: "Free · chat quota not listed", supported: true },
+    { name: "Duck.ai", url: "https://duck.ai/", usage: "Free · daily usage limit", supported: true },
+    { name: "DeepSeek", url: "https://chat.deepseek.com/", usage: "Free · quota not listed", supported: false },
+    { name: "Meta AI", url: "https://www.meta.ai/", usage: "Free · quota not listed", supported: true },
+  ];
+  const AI_PICKS = {
+    coding: ["Claude", "Groq Chat", "ChatGPT", "DeepSeek"],
+    building: ["Claude", "ChatGPT", "Gemini", "Meta AI", "Groq Chat"],
+    longer: ["Groq Chat", "DeepSeek", "Meta AI"],
+  };
 
   const A = {
     running: false,
@@ -2786,19 +2801,30 @@
     function buildMenu() {
       const here = (P.displayName || "").toLowerCase();
       const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-      let sites = "";
-      for (const s of AI_SITES) {
-        const current = s.name.toLowerCase() === here;
-        const label = `<span class="zs-site-name"><span>${s.name}</span><span class="zs-site-host">${hostOf(s.url)}</span></span>`;
-        sites += current
-          ? `<div class="zs-site-opt zs-site-here">${label}<span class="zs-site-badge">active</span></div>`
-          : `<button class="zs-site-opt" data-u="${s.url}">${label}<span class="zs-site-go">&rarr;</span></button>`;
-      }
+      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const siteByName = (name) => AI_SITES.find((s) => s.name === name) || FREE_AI_SITES.find((s) => s.name === name);
+      const renderSite = (s, detail = "") => {
+        if (!s) return "";
+        const current = s.supported !== false && s.name.toLowerCase() === here;
+        const host = `${hostOf(s.url)}${detail ? ` · ${detail}` : ""}`;
+        const label = `<span class="zs-site-name"><span>${esc(s.name)}</span><span class="zs-site-host">${esc(host)}</span></span>`;
+        if (current) return `<div class="zs-site-opt zs-site-here">${label}<span class="zs-site-badge">active</span></div>`;
+        const badge = s.supported === false ? `<span class="zs-site-badge zs-site-badge-dir">website only</span>` : `<span class="zs-site-go">&rarr;</span>`;
+        return `<button class="zs-site-opt" data-u="${esc(s.url)}">${label}${badge}</button>`;
+      };
+      const sites = AI_SITES.map((s) => renderSite(s)).join("");
+      const freeSites = FREE_AI_SITES.map((s) => renderSite(s, s.usage)).join("");
+      const recSites = (names) => names.map((name) => {
+        const site = siteByName(name);
+        return site ? renderSite(site, site.supported === false ? "directory link" : "") : "";
+      }).join("");
+      const codingSites = recSites(AI_PICKS.coding);
+      const buildingSites = recSites(AI_PICKS.building);
+      const longerSites = recSites(AI_PICKS.longer);
       let passes = "";
       for (const p of ROBUX_PASSES) {
         passes += `<button class="zs-tip-opt zs-tip-rbx" data-u="${passUrl(p.id)}"><span class="zs-rbx-cur">R$</span>${p.robux}</button>`;
       }
-      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       const mergedServers = mergedMcpServers();
       // Roblox always heads the list - greyed out, no health dot (its own status
       // is already the main SharkNyx dot elsewhere) and no remove button (it's
@@ -2817,6 +2843,21 @@
          <section class="zs-menu-sec">
            <div class="zs-sec-label"><span>Switch AI</span></div>
            ${sites}
+         </section>
+         <section class="zs-menu-sec">
+           <div class="zs-sec-label"><span>Free AI websites</span></div>
+           <div class="zs-menu-note">Usage changes by account. DeepSeek is a website link only; it is not connected to SharkNyx.</div>
+           ${freeSites}
+         </section>
+         <section class="zs-menu-sec">
+           <div class="zs-sec-label"><span>Best for</span></div>
+           <div class="zs-pick-label">Coding</div>${codingSites}
+           <div class="zs-pick-label">Roblox building</div>${buildingSites}
+         </section>
+         <section class="zs-menu-sec">
+           <div class="zs-sec-label"><span>Longer free sessions</span></div>
+           <div class="zs-menu-note">Suggestions, not measured rankings. Limits can change; none are guaranteed unlimited. Duck.ai publishes a daily cap.</div>
+           ${longerSites}
          </section>
          <section class="zs-menu-sec">
            <div class="zs-sec-label"><span>Free Support</span></div>

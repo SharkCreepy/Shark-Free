@@ -21,5 +21,9 @@ assert.ok(plan.includes("Never output SharkNyx tool-call JSON"), "Plan prompt fo
 assert.ok(plan.includes("Prefer numbered plans."), "Plan prompt retains user style preferences");
 assert.ok(!plan.includes("list_commands"), "Plan prompt does not inherit Agent tool instructions");
 assert.ok(agent.includes("list_commands"), "Agent prompt remains unchanged and command-capable");
+assert.ok(agent.includes("at most one command block per reply"), "Agent prompt preserves one-command-at-a-time execution");
+assert.ok(agent.includes("Never delete or clear broad targets"), "Agent prompt preserves destructive-action safeguards");
+assert.ok(agent.includes("# Project memory"), "Agent prompt retains the project-memory template");
+assert.ok(agent.length < 5000 && plan.length < 1200, "Agent and Plan prompts remain compact");
 
 console.log("Plan-mode prompt tests passed.");

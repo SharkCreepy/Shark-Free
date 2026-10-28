@@ -34,7 +34,7 @@ const ZSProvider = (() => {
     STABLE_MS: 9000,
     RESPONSE_TIMEOUT_MS: 300000,
   };
-  const PROMPT_EXTRA = "Keep replies concise and act only on the user's explicit request. Do not add unrequested features or objects, avoid redundant Roblox commands and routine checks, and stop when the requested task is complete.";
+  const PROMPT_EXTRA = "Use concise, plain-language replies. Do only what was asked; add no unrequested features. Use the fewest necessary commands and stop when done.";
   const CMD_SHAPE = /\"(?:command|tool)\"\s*:\s*\"|###\s*(?:LUA|MCP_TOOL)\s*###/i;
   const BLOCK_TAGS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", "H1", "H2", "H3", "H4", "LI", "OL", "P", "PRE", "SECTION", "UL"]);
 
@@ -192,17 +192,56 @@ const ZSProvider = (() => {
     return false;
   }
   const sendButton = () => document.querySelector(S.send);
+  let attachedImageSet = null;
+  function fileFromImage(img, index) {
+    const mime = img.mimeType || "image/jpeg";
+    const binary = atob(img.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : mime.includes("gif") ? "gif" : "jpg";
+    return new File([bytes], `SharkNyx_screenshot_${Date.now()}_${index}.${ext}`, { type: mime });
+  }
+  const imageInput = () =>
+    document.querySelector('input[type="file"][accept*="image" i]') || document.querySelector('input[type="file"]');
+  const attachmentFrame = () => {
+    const editor = getEditor();
+    return editor && (editor.closest("form") || editor.closest("fieldset") || editor.parentElement);
+  };
+  function stagedImageCount() {
+    const frame = attachmentFrame();
+    if (!frame) return 0;
+    return frame.querySelectorAll('img, [data-testid*="attachment" i], [data-testid*="file" i], [aria-label*="Remove" i]').length;
+  }
+  async function attachImages(images) {
+    const input = imageInput();
+    if (!input || !images || !images.length) return false;
+    const before = stagedImageCount();
+    const transfer = new DataTransfer();
+    images.forEach((image, index) => { try { transfer.items.add(fileFromImage(image, index)); } catch {} });
+    if (!transfer.items.length) return false;
+    try {
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    } catch { return false; }
+    // Do not let a screenshot be silently dropped: wait for Claude's composer
+    // preview before sending the accompanying instruction.
+    return waitFor(() => stagedImageCount() > before, 15000);
+  }
   const sendReady = () => {
     const button = sendButton();
     return !!button && !button.disabled && button.getAttribute("aria-disabled") !== "true";
   };
-  async function typeAndSend(text) {
+  async function typeAndSend(text, images) {
     const editor = getEditor();
     if (!editor) throw new Error("Claude input box not found");
     const relock = locked;
     const beforeUsers = userCount();
     if (relock) editor.setAttribute("contenteditable", "true");
     try {
+      if (images && images.length && images !== attachedImageSet) {
+        if (!(await attachImages(images))) throw new Error("Claude did not show the captured screenshot in its composer");
+        attachedImageSet = images;
+      }
       await typeEditorText(editor, text);
       if (!(await waitFor(sendReady, 15000))) throw new Error("Claude send button did not become ready");
       const button = sendButton();
@@ -210,6 +249,7 @@ const ZSProvider = (() => {
       button.click();
       const accepted = await waitFor(() => userCount() > beforeUsers || !editorText().trim() || isGenerating(), 10000);
       if (!accepted) throw new Error("Claude did not accept the message");
+      if (images && images.length) attachedImageSet = null;
     } finally {
       if (relock) {
         const current = getEditor();
@@ -283,7 +323,7 @@ const ZSProvider = (() => {
   return {
     id: "claude",
     displayName: "Claude",
-    supportsVision: false,
+    supportsVision: true,
     timings,
     reliableCounts: true,
     chipAtItemLevel: true,
