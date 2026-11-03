@@ -113,6 +113,8 @@
     { name: "Claude", url: "https://claude.ai/new" },
     { name: "Duck.ai", url: "https://duck.ai/" },
     { name: "Groq Chat", url: "https://console.groq.com/chat" },
+    { name: "Perplexity", url: "https://www.perplexity.ai/" },
+    { name: "HuggingChat", url: "https://huggingface.co/chat/" },
   ];
   // DeepSeek remains a directory link only (its SharkNyx provider was removed).
   // Free quotas change and are not directly comparable; do not label any site
@@ -168,6 +170,8 @@
     bootBaselineId: null,
     injecting: false,
     toolRunning: false,
+    // A Portal-originated plain chat must never be mistaken for an Agent turn.
+    portalRequestActive: false,
     toolStart: 0,
     toolName: "",
     toolItem: null,
@@ -277,6 +281,7 @@
   // user message, bootstrap). Providers without lastAssistantId fall back to count.
   function captureSendToken() {
     A.sendToken = P.lastAssistantId ? P.lastAssistantId() : undefined;
+    A.providerErrorBaseline = P.scanError ? String(P.scanError() || "") : "";
   }
 
   async function submitAndGetBase(text, images) {
@@ -486,6 +491,8 @@
       const newReply = (curTok !== undefined && curTok !== null)
         ? (curTok !== A.sendToken)
         : P.assistantCount() > base;
+      const inlineErrorKind = newReply && P.classifyErrorText ? P.classifyErrorText(d.reply) : "";
+      if (inlineErrorKind) return { kind: inlineErrorKind, detail: String(d.reply || "").slice(0, 600) };
       const providerFailure = newReply && P.streamError ? P.streamError(d.item) : null;
       if (providerFailure) {
         diag("response.providerStreamEnded", { provider: P.id, notice: providerFailure.slice(0, 180) });
@@ -539,7 +546,7 @@
       if (Date.now() - lastLimitScan > 1000) {
         lastLimitScan = Date.now();
         const ctx = P.scanError();
-        if (ctx) return { kind: "context_limit", detail: ctx };
+        if (ctx && String(ctx) !== String(A.providerErrorBaseline || "")) return { kind: P.classifyErrorText?.(ctx) || "context_limit", detail: ctx };
       }
 
       // Keep waiting while a tool command is still being streamed (opener written
@@ -814,6 +821,250 @@
     });
   }
 
+  // ── Local Portal chat relay ───────────────────────────────────────────────
+  // Plain Portal Chat stays outside the Roblox loop. Only an explicit Agent-mode
+  // request may enter the existing loop, and only through its normal parser,
+  // foreground gate, runTool checks, and script-review confirmation.
+  let activePortalRequest = null;
+  function portalAgentExecutionActive() {
+    return !!(A.portalRequestActive && activePortalRequest?.agentMode && activePortalRequest?.allowAgentExecution);
+  }
+  const PORTAL_IMAGE_RE = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/]+={0,2})$/i;
+  function decodePortalImages(attachments) {
+    if (attachments == null) return [];
+    if (!Array.isArray(attachments) || attachments.length > 4) throw new Error("Choose no more than four images.");
+    let total = 0;
+    const images = attachments.map((attachment) => {
+      const match = PORTAL_IMAGE_RE.exec(String(attachment?.dataUrl || ""));
+      if (!match) throw new Error("An image attachment is invalid.");
+      const mimeType = match[1].toLowerCase();
+      const data = match[2];
+      if (data.length % 4 !== 0) throw new Error("An image attachment has malformed Base64 data.");
+      const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+      const size = Math.floor(data.length * 3 / 4) - padding;
+      if (attachment.type && String(attachment.type).toLowerCase() !== mimeType) throw new Error("An image MIME type did not match its data.");
+      if (Number.isFinite(attachment.size) && attachment.size !== size) throw new Error("An image size did not match its data.");
+      if (size < 1 || size > 5 * 1024 * 1024) throw new Error("Each image must be 5 MiB or smaller.");
+      let binary;
+      try {
+        binary = atob(data);
+        if (btoa(binary) !== data) throw new Error("An image attachment has non-canonical Base64 data.");
+      } catch { throw new Error("An image attachment has malformed or non-canonical Base64 data."); }
+      if (binary.length !== size) throw new Error("An image attachment has malformed Base64 data.");
+      const hasBytes = (signature, offset = 0) => signature.every((byte, index) => binary.charCodeAt(offset + index) === byte);
+      const validSignature = mimeType === "image/png"
+        ? hasBytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+        : mimeType === "image/jpeg" ? hasBytes([0xff, 0xd8, 0xff])
+        : mimeType === "image/gif" ? (hasBytes([0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) || hasBytes([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]))
+        : mimeType === "image/webp" ? (hasBytes([0x52, 0x49, 0x46, 0x46]) && hasBytes([0x57, 0x45, 0x42, 0x50], 8))
+        : false;
+      if (!validSignature) throw new Error("Image data does not match its declared image type.");
+      total += size;
+      if (total > 10 * 1024 * 1024) throw new Error("Selected images exceed the 10 MiB total limit.");
+      return { mimeType, data };
+    });
+    return images;
+  }
+
+  function providerPageAuthStatus() {
+    const visible = (node) => {
+      if (!node || !node.isConnected) return false;
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const pathLooksLikeLogin = /\/(?:login|log-in|signin|sign-in|auth)(?:[/?#]|$)/i.test(location.pathname || "");
+    const challengeControls = [...document.querySelectorAll('iframe[src*="captcha" i],[id*="captcha" i],[class*="captcha" i],[data-testid*="challenge" i],input[autocomplete="one-time-code"],input[name*="otp" i],input[aria-label*="verification" i]')].some(visible);
+    const dialogs = [...document.querySelectorAll('[role="dialog"],[aria-modal="true"]')].filter(visible);
+    const dialogText = dialogs.map((node) => node.innerText || node.textContent || "").join(" ");
+    const mainText = document.querySelector('main,[role="main"]')?.innerText || "";
+    const challengeCopy = /two[-\s]?factor|enter (?:the )?(?:verification|security) code|verify (?:your|it's|that) (?:identity|you)|checking if you(?:'|’)re human|security check|captcha/i;
+    const challenge = challengeControls || challengeCopy.test(dialogText) || (/\/(?:challenge|verify|verification|mfa)(?:[/?#]|$)/i.test(location.pathname || "") && challengeCopy.test(mainText));
+    if (challenge) return "challenge";
+    const explicitLogin = [...document.querySelectorAll('input[type="password"],form[action*="login" i],form[action*="signin" i],[data-testid*="login" i],[class*="login-modal" i],[class*="signin-modal" i]')].some(visible);
+    const blockingLogin = !!P.overlayBlocking?.() && /sign\s*in|log\s*in|continue with|create account/i.test(dialogText);
+    if (explicitLogin || blockingLogin || (pathLooksLikeLogin && !P.getEditor?.())) return "sign_in_required";
+    const editor = P.getEditor?.();
+    if (editor && visible(editor) && !P.overlayBlocking?.()) return "signed_in";
+    return "unknown";
+  }
+
+  function portalProgress(request, text) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "snx-portal-provider-progress",
+        requestId: request.requestId,
+        providerId: P.id,
+        conversationId: String(request.payload.conversationId || "").slice(0, 120),
+        text: String(text || ""),
+        modelId: request.modelApplied ? String(request.payload.modelId || "").slice(0, 120) : "",
+        modelLabel: request.modelApplied ? String(request.modelLabel || "").slice(0, 120) : "Provider page's current model (not verified)",
+      }).catch(() => {});
+    } catch {}
+  }
+
+  async function handlePortalProviderRequest(message) {
+    const requestId = String(message.requestId || "");
+    const payload = message.payload && typeof message.payload === "object" ? message.payload : {};
+    const agentMode = payload.agentMode === true;
+    if (!requestId || requestId.length > 120) return { ok: false, kind: "invalid_request", error: "Invalid Portal request ID." };
+    if (payload.agentMode != null && typeof payload.agentMode !== "boolean") return { ok: false, kind: "invalid_request", error: "Invalid Portal mode." };
+    if (String(payload.providerId || "") !== P.id) return { ok: false, kind: "wrong_provider", error: "The selected provider does not match this browser tab." };
+    if (typeof payload.text !== "string" || !payload.text.trim() || payload.text.length > 60000) return { ok: false, kind: "invalid_request", error: "Message must contain 1–60,000 characters." };
+    if (activePortalRequest || A.portalRequestActive || A.running || A.starting || A.toolRunning) return { ok: false, kind: "provider_busy", error: "This provider tab is already busy. Wait for the current response to finish." };
+    const request = { requestId, payload, cancelled: false, agentMode, allowAgentExecution: false, sending: false, agentLoopRequested: false, sent: false, completed: false, modelApplied: false, modelLabel: "" };
+    activePortalRequest = request;
+    A.portalRequestActive = true;
+    try {
+      // Session state is restored asynchronously from extension storage. Hold the
+      // Portal lock during hydration so Agent/Plan controls cannot race the request.
+      if (!sessionModesHydrated) await sessionModesReady;
+      syncSessionState();
+      if (request.cancelled) return { ok: false, kind: "stopped", error: "Response stopped." };
+
+      if (agentMode) {
+        if (document.hidden) return { ok: false, kind: "provider_hidden", error: "Roblox Agent mode requires a visible provider page for its existing review safeguards. Bring the provider tab to the foreground and retry; no command was run." };
+        const bridge = await bg({ type: "status" });
+        if (!bridge || bridge.connected !== true) return { ok: false, kind: "bridge_offline", error: "The local SharkNyx bridge is offline. Start the local bridge and retry; no Studio command was run." };
+        if (bridge.studio !== true) {
+          const error = bridge.studio === false
+            ? bridge.studioApp === true
+              ? "Roblox Studio is open, but its Studio MCP server is not connected. In Studio, open Assistant Settings > MCP Servers and enable the Roblox/Studio MCP connection. No command was run."
+              : bridge.studioProc === false
+                ? "Roblox Studio is not running. Open Roblox Studio and a place, connect its MCP server, then retry. No command was run."
+                : "Roblox Studio is not connected to the local MCP bridge. Start Studio and enable its MCP server, then retry. No command was run."
+            : "Roblox Studio connection is not confirmed yet. Wait for the local bridge status to update and retry. No command was run.";
+          return { ok: false, kind: bridge.studio === false ? "studio_offline" : "studio_unverified", error };
+        }
+        if (A.started && A.sessionMode !== "agent") return { ok: false, kind: "plan_mode_active", error: "This provider page is in Plan mode. Open a fresh provider chat to start Roblox Agent mode; Plan mode will not run commands." };
+        if (!A.started) {
+          if (!P.chatIsEmpty()) return { ok: false, kind: "agent_start_requires_fresh_chat", error: "Roblox Agent mode can start only in an empty provider conversation. Open a new chat on the provider site, then retry here; SharkNyx will not create a provider conversation automatically." };
+          request.allowAgentExecution = true;
+          await startSession("agent", requestId);
+          if (request.cancelled || A.stop) return { ok: false, kind: "stopped", error: "Roblox Agent startup was stopped." };
+          syncSessionState();
+          if (!A.started || A.sessionMode !== "agent") return { ok: false, kind: "agent_start_failed", error: "Roblox Agent could not start. Check the provider page and Studio connection, then retry from an empty provider conversation." };
+        }
+        request.allowAgentExecution = true;
+      } else if (A.started || A.running || A.starting || A.toolRunning) {
+        return { ok: false, kind: "agent_session_active", error: "This provider page has an active SharkNyx Agent/Plan session. Stop it or use Roblox Agent mode in the Portal; plain Chat mode never runs Studio commands." };
+      }
+
+      let images;
+      try { images = decodePortalImages(payload.attachments); }
+      catch (error) { return { ok: false, kind: "invalid_attachment", error: String(error && error.message || error) }; }
+      if (images.length && !P.supportsVision) return { ok: false, kind: "vision_unsupported", error: `${P.displayName} is not marked image-capable by this SharkNyx adapter. Remove the image or use a provider/model that supports vision.` };
+      if (payload.effort != null && (P.id !== "claude" || !["low", "medium", "high", "extra", "max"].includes(payload.effort))) return { ok: false, kind: "invalid_request", error: "Invalid effort setting for this provider." };
+      if (P.isGenerating()) return { ok: false, kind: "provider_busy", error: `${P.displayName} is already generating in this tab. Wait for it to finish and retry.` };
+      const editor = P.getEditor ? P.getEditor() : null;
+      if (!editor) {
+        const authStatus = providerPageAuthStatus();
+        return authStatus === "sign_in_required"
+          ? { ok: false, kind: "sign_in_required", error: `Sign in to ${P.displayName} in this regular provider tab; no prompt was sent.` }
+          : { ok: false, kind: "provider_not_ready", error: `${P.displayName}'s chat composer is not ready. No prompt was sent.` };
+      }
+
+      const baselineItem = P.lastAssistant();
+      const baselineId = P.lastAssistantId ? P.lastAssistantId() : null;
+      const baselineCount = P.assistantCount ? P.assistantCount() : 0;
+      const baselineProviderError = P.scanError ? String(P.scanError() || "") : "";
+      const warnings = [];
+      if (payload.modelId && typeof P.selectModel === "function") {
+        const modelSelection = await P.selectModel(String(payload.modelId));
+        if (!modelSelection?.ok) return { ok: false, kind: "model_unavailable", error: String(modelSelection?.error || "The selected model could not be confirmed on the provider page. No prompt was sent.").slice(0, 300) };
+        request.modelApplied = true;
+        request.modelLabel = String(modelSelection.modelLabel || payload.modelLabel || payload.modelId).slice(0, 120);
+      } else if (payload.modelId) {
+        warnings.push(`Portal model “${String(payload.modelLabel || payload.modelId).slice(0, 100)}” was not switched: this provider's model picker has no verified Portal mapping yet, so the site's currently selected model was used.`);
+      }
+      if (P.id === "claude" && payload.effort) warnings.push(`Claude ${payload.effort} effort was not applied: the extension does not yet map Portal effort values to Claude's page controls.`);
+
+      const requestStartedAt = Date.now();
+      const timeoutMs = Math.min(Math.max(Number(P.timings?.RESPONSE_TIMEOUT_MS) || 240000, 60000), 270000);
+      const deadline = requestStartedAt + timeoutMs;
+      request.sent = true;
+      request.sending = true;
+      try { await P.typeAndSend(payload.text, images); }
+      finally { request.sending = false; }
+      if (request.cancelled) return { ok: false, kind: "stopped", error: "Response stopped." };
+      if (agentMode && !request.agentLoopRequested) {
+        await sleep(350);
+        if (!request.cancelled && !A.running && !A.userStopped) {
+          request.agentLoopRequested = true;
+          void agentLoop(baselineCount);
+        }
+      }
+      let lastActivityAt = Date.now();
+      let lastText = "";
+      let lastProgressText = "";
+      let lastProgressAt = 0;
+      let started = false;
+      let lastErrorScan = 0;
+      const stableMs = Math.max(P.timings?.GEN_IDLE_MS || 1800, 1800);
+      while (Date.now() < deadline) {
+        if (request.cancelled || (agentMode && A.stop)) return { ok: false, kind: "stopped", error: "Response stopped." };
+        const item = P.lastAssistant();
+        const currentId = P.lastAssistantId ? P.lastAssistantId() : null;
+        const newTurn = !!item && (item !== baselineItem || (baselineId != null && currentId != null && currentId !== baselineId) || (P.assistantCount && P.assistantCount() > baselineCount));
+        const generation = !!P.isGenerating();
+        const agentBusy = agentMode && (A.running || A.starting || A.toolRunning);
+        const data = P.readAssistant ? P.readAssistant() : null;
+        const text = String(data?.reply || "");
+        const inlineErrorKind = P.classifyErrorText ? P.classifyErrorText(text) : "";
+        if (newTurn && inlineErrorKind) return { ok: false, kind: inlineErrorKind, error: text.slice(0, 600) };
+        if (newTurn && (generation || text)) started = true;
+        if (text !== lastText) {
+          lastText = text;
+          lastActivityAt = Date.now();
+          if (started && text && (text !== lastProgressText || Date.now() - lastProgressAt > 350)) {
+            lastProgressText = text;
+            lastProgressAt = Date.now();
+            portalProgress(request, text);
+          }
+        }
+        if ((generation || agentBusy) && started) lastActivityAt = Date.now();
+        if (Date.now() - lastErrorScan > 1000 && P.scanError && (!started || (!generation && !text && !agentBusy))) {
+          lastErrorScan = Date.now();
+          const providerError = P.scanError();
+          if (providerError && String(providerError) !== baselineProviderError) return { ok: false, kind: P.classifyErrorText?.(providerError) || "provider_error", error: String(providerError).slice(0, 600) };
+        }
+        if (started && !generation && !agentBusy && text && Date.now() - lastActivityAt >= stableMs) {
+          portalProgress(request, text);
+          const result = {
+            ok: true,
+            text,
+            conversationId: String(payload.conversationId || "").slice(0, 120),
+            modelId: request.modelApplied ? String(payload.modelId || "").slice(0, 120) : "",
+            modelLabel: request.modelApplied ? request.modelLabel : "Provider page's current model (not verified)",
+            modelApplied: request.modelApplied,
+            effortApplied: !(P.id === "claude" && payload.effort),
+            requestedModelId: String(payload.modelId || "").slice(0, 120),
+            requestedModelLabel: String(payload.modelLabel || "").slice(0, 120),
+            warnings,
+          };
+          request.completed = true;
+          return result;
+        }
+        if (!generation && !agentBusy && Date.now() - lastActivityAt > 45000 && !text) {
+          const providerError = P.scanError ? P.scanError() : "";
+          return { ok: false, kind: "empty_response", error: providerError || `${P.displayName} did not return readable text.` };
+        }
+        if (Date.now() - lastActivityAt > timeoutMs) break;
+        await sleep(250);
+      }
+      return { ok: false, kind: "timeout", error: `${P.displayName} did not finish a readable reply before the timeout.` };
+    } catch (error) {
+      return { ok: false, kind: "provider_error", error: String(error && error.message || error).slice(0, 500) };
+    } finally {
+      if (agentMode && request.sent && !request.completed && (A.running || A.starting || A.toolRunning || P.isGenerating())) {
+        try { stopLoop(); } catch { try { P.stopGeneration(); } catch {} }
+      }
+      request.sending = false;
+      if (activePortalRequest === request) activePortalRequest = null;
+      A.portalRequestActive = false;
+    }
+  }
+
   // 'subagent' is always blocked (long-running, hangs the loop). 'screen_capture'
   // is only blocked on providers whose underlying model can't see images
   // (P.supportsVision === false) - see providers/*.js for the per-site flag.
@@ -905,6 +1156,7 @@
     const name = call.tool;
     const args = call.arguments || {};
     if (!name) return ZS.FEEDBACK.parseError("malformed");
+    if (A.portalRequestActive && !portalAgentExecutionActive()) return "ERROR: no Roblox command was run because a plain Portal chat request is active in this provider tab.";
     if (A.sessionMode === "plan") {
       diag("tool.blocked.planMode", { name });
       return "PLAN MODE: No Roblox command was run. Give the user a plain-language plan instead; do not output executable commands.";
@@ -1036,6 +1288,18 @@
     // it can only be right. (It still needs the game RUNNING; that's documented.)
     if ((bareName === "user_keyboard_input" || bareName === "user_mouse_input") && !args.datamodel_type)
       args.datamodel_type = "Client";
+    if (bareName === "multi_edit") {
+      const decision = await ui.reviewScriptEdit(args);
+      if (A.stop || !decision || decision.action === "cancel") return "(stopped by user)";
+      if (decision.action === "decline") {
+        return "ERROR: The user declined this proposed script edit. It was not applied. Do not retry or apply the same change with another command; tell the user it was declined.";
+      }
+      if (decision.action === "change") {
+        const request = String(decision.note || "").trim();
+        return `ERROR: No script changes were applied. The user requested changes before approval: ${request}\nRevise the edit to match, then submit a new multi_edit proposal for review. Do not claim this edit was applied.`;
+      }
+      if (decision.action !== "accept") return "ERROR: The edit was not approved and was not applied.";
+    }
     const timeout = name === "execute_luau" ? 20000 : 120000;
     // Hard watchdog: even if the background worker never answers, the loop
     // gets a definitive result and continues.
@@ -1243,10 +1507,12 @@
   //  AGENTIC LOOP
   // ════════════════════════════════════════════════════════════════════════
   async function agentLoop(base) {
+    if (A.portalRequestActive && !portalAgentExecutionActive()) { diag("loop.blocked.portalRequest"); return; }
     if (!sessionModesHydrated && A.started && !A.starting) {
       diag("loop.waitSessionMode");
       await sessionModesReady;
     }
+    if (A.portalRequestActive && !portalAgentExecutionActive()) { diag("loop.blocked.portalRequest"); return; }
     if (A.running) return;
     A.running = true;
     A.resumeArmed = false; // loop now owns the turn; drop the regenerate grace
@@ -1287,6 +1553,12 @@
         const res = await waitForResponse(base);
         diag("response", { kind: res.kind });
         if (A.stop || res.kind === "stopped") break;
+
+        if (res.kind === "tpm_limit") {
+          ui.banner("limit", `${P.displayName} token budget exceeded`,
+            `${res.detail || "The provider rejected this request because it exceeded its current tokens-per-minute allowance."} Start a fresh provider conversation, shorten the prompt/history, or choose another model. No command was run, and SharkNyx did not retry automatically.`);
+          break;
+        }
 
         if (res.kind === "provider_error") {
           ui.banner("warn", `${P.displayName} response interrupted`,
@@ -1630,6 +1902,7 @@
     diag("stopLoop");
     A.stop = true;
     A.stopping = true;
+    if (ui.cancelScriptEditReview) ui.cancelScriptEditReview();
     A.stopAt = Date.now(); // grace anchor for the regenerate-as-resume gates
     // Baseline for the stop-retry growth gate (see the self-heal in the meter
     // loop): a retry is only allowed if the reply keeps growing PAST this,
@@ -1842,7 +2115,12 @@
   // ════════════════════════════════════════════════════════════════════════
   //  SESSION BOOTSTRAP  ("Starting Up" animated chip, shown in the conversation)
   // ════════════════════════════════════════════════════════════════════════
-  async function startSession() {
+  async function startSession(modeOverride = "", portalRequestId = "") {
+    const portalAgentBootstrap = !!(activePortalRequest?.agentMode && activePortalRequest?.allowAgentExecution && activePortalRequest.requestId === String(portalRequestId || ""));
+    if (A.portalRequestActive && !portalAgentBootstrap) {
+      ui.toast("Wait for the Portal reply to finish or stop it before starting the Roblox agent.");
+      return;
+    }
     if (A.running || A.starting) return;
     // "Start session" is allowed ONLY on a blank conversation. Opening an
     // EXISTING conversation must never trigger the bootstrap.
@@ -1850,7 +2128,7 @@
       ui.toast("Open a new, empty conversation to start a session.");
       return;
     }
-    A.sessionMode = ui.getMode();
+    A.sessionMode = portalAgentBootstrap ? "agent" : (modeOverride === "agent" || modeOverride === "plan" ? modeOverride : ui.getMode());
     A.userStopped = false;
     A.stop = false;               // clear any halt left by a prior aborted bootstrap
     // Snapshot any turn already on screen at session start (normally none on a
@@ -1937,6 +2215,7 @@
       ui.toast(A.sessionMode === "plan"
         ? `Plan mode ready. No Roblox commands will run.`
         : `Agent ready. Ask ${P.displayName} to build something in Roblox.`);
+      return { ok: true, mode: A.sessionMode };
     } catch (e) {
       if (alive()) ui.banner("warn", "Startup failed", String((e && e.message) || e));
     } finally {
@@ -2571,6 +2850,8 @@
   const ui = (() => {
     let root, bar, dot, brandEl, stateEl, actionBtn, stopBtn, switchBtn, supportBtn, modeSelect, menuEl, unstableEl;
     let cover, coverRaf, barRaf;
+    let editReviewResolver = null;
+    let editReviewModal = null;
     let selectedMode = "agent";
     let userTouchedMode = false;
     let openMenuFn = null; // set by build(); lets the popup force the panel open via runtime message
@@ -3817,6 +4098,127 @@
       place();
     }
 
+    function finishScriptEditReview(result) {
+      if (!editReviewResolver) return;
+      const resolve = editReviewResolver;
+      editReviewResolver = null;
+      if (editReviewModal) editReviewModal.remove();
+      editReviewModal = null;
+      resolve(result);
+    }
+
+    function cancelScriptEditReview() {
+      finishScriptEditReview({ action: "cancel" });
+    }
+
+    function reviewScriptEdit(args) {
+      const review = ZS.scriptEditReviewPayload(args);
+      return new Promise((resolve) => {
+        if (editReviewResolver) finishScriptEditReview({ action: "cancel" });
+        editReviewResolver = resolve;
+
+        const modal = document.createElement("div");
+        modal.className = "zs-review-backdrop";
+        modal.innerHTML =
+          `<section class="zs-review-dialog" role="dialog" aria-modal="true" aria-labelledby="zs-review-heading" tabindex="-1">` +
+            `<header class="zs-review-header"><div><h2 id="zs-review-heading">Review script changes</h2><div class="zs-review-subtitle">Nothing has been applied yet. Check the proposed edits below.</div></div></header>` +
+            `<div class="zs-review-target"></div>` +
+            `<div class="zs-review-list"></div>` +
+            `<div class="zs-review-request" hidden>` +
+              `<label for="zs-review-request-text">What should be changed or fixed?</label>` +
+              `<textarea id="zs-review-request-text" rows="4" placeholder="Describe the change you want"></textarea>` +
+              `<div class="zs-review-request-error" role="status"></div>` +
+              `<div class="zs-review-request-actions"><button type="button" data-review="back">Back</button><button type="button" class="zs-review-action-change" data-review="send-change">Send change request</button></div>` +
+            `</div>` +
+            `<footer class="zs-review-actions">` +
+              `<button type="button" class="zs-review-action-decline" data-review="decline">Decline</button>` +
+              `<button type="button" class="zs-review-action-change" data-review="change">Change…</button>` +
+              `<button type="button" class="zs-review-action-accept" data-review="accept">Accept changes</button>` +
+            `</footer>` +
+          `</section>`;
+        const dialog = modal.querySelector(".zs-review-dialog");
+        const target = modal.querySelector(".zs-review-target");
+        target.textContent = `Target: ${review.target}`;
+        const list = modal.querySelector(".zs-review-list");
+
+        function addCodePanel(parent, label, value) {
+          const panel = document.createElement("div");
+          panel.className = "zs-review-code-panel";
+          const heading = document.createElement("div");
+          heading.className = "zs-review-code-label";
+          heading.textContent = label;
+          const pre = document.createElement("pre");
+          pre.textContent = value || "(empty)";
+          panel.append(heading, pre);
+          parent.appendChild(panel);
+        }
+
+        if (!review.edits.length) {
+          const item = document.createElement("section");
+          item.className = "zs-review-edit";
+          const heading = document.createElement("h3");
+          heading.textContent = "Raw multi_edit arguments";
+          const pre = document.createElement("pre");
+          pre.className = "zs-review-raw";
+          pre.textContent = review.raw;
+          item.append(heading, pre);
+          list.appendChild(item);
+        } else {
+          for (const edit of review.edits) {
+            const item = document.createElement("section");
+            item.className = "zs-review-edit";
+            const heading = document.createElement("h3");
+            heading.textContent = `Edit ${edit.index}${edit.replaceAll ? " · replace all matches" : ""}`;
+            item.appendChild(heading);
+            if (edit.readable) {
+              const pair = document.createElement("div");
+              pair.className = "zs-review-code-grid";
+              addCodePanel(pair, "Before", edit.oldText);
+              addCodePanel(pair, "Proposed after", edit.newText);
+              item.appendChild(pair);
+            } else {
+              const pre = document.createElement("pre");
+              pre.className = "zs-review-raw";
+              pre.textContent = edit.raw;
+              item.appendChild(pre);
+            }
+            list.appendChild(item);
+          }
+        }
+
+        const requestPanel = modal.querySelector(".zs-review-request");
+        const actions = modal.querySelector(".zs-review-actions");
+        const requestText = modal.querySelector("#zs-review-request-text");
+        const requestError = modal.querySelector(".zs-review-request-error");
+        modal.querySelector('[data-review="accept"]').addEventListener("click", () => finishScriptEditReview({ action: "accept" }));
+        modal.querySelector('[data-review="decline"]').addEventListener("click", () => finishScriptEditReview({ action: "decline" }));
+        modal.querySelector('[data-review="change"]').addEventListener("click", () => {
+          actions.hidden = true;
+          requestPanel.hidden = false;
+          requestText.focus();
+        });
+        modal.querySelector('[data-review="back"]').addEventListener("click", () => {
+          requestPanel.hidden = true;
+          actions.hidden = false;
+          requestError.textContent = "";
+        });
+        modal.querySelector('[data-review="send-change"]').addEventListener("click", () => {
+          const note = requestText.value.trim();
+          if (!note) { requestError.textContent = "Type what you want changed first."; requestText.focus(); return; }
+          finishScriptEditReview({ action: "change", note });
+        });
+        dialog.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") { event.preventDefault(); finishScriptEditReview({ action: "decline" }); }
+          if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !requestPanel.hidden) {
+            event.preventDefault(); modal.querySelector('[data-review="send-change"]').click();
+          }
+        });
+        editReviewModal = modal;
+        root.appendChild(modal);
+        requestAnimationFrame(() => dialog.focus());
+      });
+    }
+
     function toast(msg) {
       const t = document.createElement("div");
       t.className = "zs-toast";
@@ -3872,7 +4274,7 @@
     }
 
     build();
-    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getMode: () => A.started ? (A.sessionMode || selectedMode) : selectedMode, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
+    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, reviewScriptEdit, cancelScriptEditReview, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getMode: () => A.started ? (A.sessionMode || selectedMode) : selectedMode, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
   })();
 
   // ── Live token + timer, shown ONLY on a tool call's chip detail. The
@@ -4131,6 +4533,26 @@
     }
   });
 
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || sender?.id !== chrome.runtime.id) return;
+    if (msg.type === "snx-portal-provider-request") {
+      handlePortalProviderRequest(msg).then(sendResponse).catch((error) => sendResponse({ ok: false, kind: "provider_error", error: String(error && error.message || error).slice(0, 500) }));
+      return true;
+    }
+    if (msg.type === "snx-portal-provider-stop") {
+      if (!activePortalRequest || activePortalRequest.requestId !== String(msg.requestId || "")) {
+        sendResponse({ ok: false, error: "No matching Portal response is active." });
+        return;
+      }
+      activePortalRequest.cancelled = true;
+      if (activePortalRequest.agentMode) {
+        try { stopLoop(); } catch {}
+      }
+      try { P.stopGeneration(); } catch {}
+      sendResponse({ ok: true });
+    }
+  });
+
   // Status poll. An orphaned content script (see bg / isContextInvalidated) gets
   // a failure object back whose `connected` is undefined, which setStatus would
   // read as "the bridge just dropped" and answer with the red "run start.bat"
@@ -4379,7 +4801,7 @@
   // User-send interception: the provider wires the site's composer events to
   // these callbacks.
   P.installSendHooks({
-    isBlocked: () => A.injecting || A.running || A.starting,
+    isBlocked: () => A.injecting || A.running || A.starting || (A.portalRequestActive && !(activePortalRequest?.agentMode && activePortalRequest?.sending)),
     isStarted: () => A.started,
     onBlockedAttempt: () => ui.nudgeStart(),
     onUserMessage: (base) => {
@@ -4388,6 +4810,7 @@
       A.userStopped = false;
       bumpSys("users");
       captureSendToken(); // identity of the assistant turn before this reply
+      if (activePortalRequest?.agentMode && activePortalRequest.sending) activePortalRequest.agentLoopRequested = true;
       // A Stop clicked during this 300ms window sets A.userStopped → honor it and
       // do NOT start the loop (otherwise the stop is silently ignored and the
       // freshly-started loop strands the "Stopping…" flag).
@@ -4448,7 +4871,7 @@
   // spontaneously fires a command on some later unrelated DOM churn.
   const RESUME_FRESH_MS = 180000;
   setInterval(() => {
-    if (!sessionModesHydrated || A.sessionMode === "plan" || !A.started || A.running || A.starting || A.injecting) return;
+    if (!sessionModesHydrated || A.portalRequestActive || A.sessionMode === "plan" || !A.started || A.running || A.starting || A.injecting) return;
     if (document.hidden) return;                         // AI tab not foreground → don't parse/exec off-screen (agentLoop gates too)
     if (A.userStopped) return;                          // user halted → never relaunch
     if (P.isGenerating()) return;
@@ -4525,7 +4948,7 @@
   const SYS_FALLBACK_IDLE_MS = 20000;
   setInterval(async () => {
     if (!sysResendDue()) return;
-    if (!A.started || A.running || A.starting || A.injecting) return;
+    if (!A.started || A.portalRequestActive || A.running || A.starting || A.injecting) return;
     if (document.hidden || A.userStopped) return;
     if (P.isGenerating()) return;
     // The user is composing - their draft owns the editor, leave it alone.

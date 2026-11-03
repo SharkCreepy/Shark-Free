@@ -758,9 +758,66 @@ const ZSProvider = (() => {
     return hidAny;
   }
 
+  const PORTAL_MODEL_OPTIONS = Object.freeze({
+    "kimi-k3-1-pro": "K3.1 Pro",
+    "kimi-k2-8-preview": "K2.8 Preview",
+    "kimi-instant": "Instant",
+  });
+  const visible = (node) => {
+    if (!node || !node.isConnected) return false;
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) > 0 && rect.width > 0 && rect.height > 0;
+  };
+  function currentModelControl() {
+    const label = document.querySelector(S.currentModelName);
+    const control = label && label.closest('button,[role="button"]');
+    if (control && visible(control)) return control;
+    return [...document.querySelectorAll('button,[role="button"]')].find((item) =>
+      visible(item) && /^(K3\.1 Pro|K2\.8 Preview|Instant)(?:\s+(?:Low|Medium|High|Extra|Max))?$/i.test((item.innerText || item.textContent || "").trim())
+    ) || null;
+  }
+  function currentModelMatches(expected) {
+    const label = document.querySelector(S.currentModelName);
+    const text = String(label?.innerText || label?.textContent || currentModelControl()?.innerText || "").replace(/\s+/g, " ").trim();
+    const modelName = text.replace(/\s+(?:Low|Medium|High|Extra|Max)$/i, "").trim();
+    return modelName.toLowerCase() === expected.toLowerCase();
+  }
+  function exactModelMenuOption(expected) {
+    const controls = [...document.querySelectorAll('[role="option"],[role="menuitem"],button,[role="button"],[tabindex],[class*="model-option"],[class*="model-item"],[class*="menu-item"]')]
+      .filter((item) => visible(item) && item !== currentModelControl())
+      .filter((item) => (item.innerText || item.textContent || "").trim().split(/\r?\n/)[0].replace(/\s+/g, " ").trim().toLowerCase() === expected.toLowerCase());
+    const leafControls = controls.filter((item) => !controls.some((other) => other !== item && item.contains(other)));
+    return leafControls.length === 1 ? leafControls[0] : null;
+  }
+  async function selectModel(modelId) {
+    const expected = PORTAL_MODEL_OPTIONS[String(modelId || "")];
+    if (!expected) return { ok: false, error: "That Kimi model is not in the verified Portal mapping." };
+    const control = currentModelControl();
+    if (!control) return { ok: false, error: "Kimi's model selector was not found; no prompt was sent." };
+    control.click();
+    const deadline = Date.now() + 3500;
+    let option = null;
+    while (Date.now() < deadline) {
+      option = exactModelMenuOption(expected);
+      if (option) break;
+      await sleep(100);
+    }
+    if (!option) return { ok: false, error: `Kimi did not show one exact “${expected}” option; no prompt was sent.` };
+    option.click();
+    const confirmUntil = Date.now() + 3500;
+    while (Date.now() < confirmUntil) {
+      if (currentModelMatches(expected)) return { ok: true, modelId, modelLabel: expected };
+      await sleep(100);
+    }
+    return { ok: false, error: `Kimi did not confirm “${expected}” as the selected model; no prompt was sent.` };
+  }
+
   return {
     id: "kimi",
     displayName: "Kimi",
+    portalModels: Object.entries(PORTAL_MODEL_OPTIONS).map(([id, name]) => ({ id, name })),
+    selectModel,
     // Confirmed live: Kimi (K2.6) reads attached images - it correctly described
     // a test screenshot's content. So screen_capture is exposed here (see main.js
     // BLOCKED_TOOLS gate); attachImages uploads via the toolkit file input, and

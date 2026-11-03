@@ -1,4 +1,4 @@
-// Smoke tests for the shared Duck.ai and Groq Chat adapters.
+// Smoke tests for the shared Duck.ai, Groq, Perplexity, and HuggingChat adapters.
 // Run with: node test-simple-providers.js
 const fs = require("fs");
 
@@ -97,12 +97,29 @@ async function run() {
       composer: 'div:has(> textarea[placeholder="Ask Groq"])',
       send: 'button:has(svg.lucide-arrow-up)', stop: 'button[aria-label*="Stop" i], button[title*="Stop" i]',
     }, conversationKey: () => "" }, "Groq Chat"],
+    ["perplexity.js", { id: "perplexity", displayName: "Perplexity", selectors: {
+      userItem: '[data-testid*="user-query"], [data-testid*="user-message"], [data-testid="question"], [data-message-role="user"], [data-role="user"], [data-author="user"]',
+      assistantItem: '[data-testid*="answer"], [data-testid*="assistant-message"], [data-message-role="assistant"], [data-role="assistant"], [data-author="assistant"], [data-message-author="assistant"]',
+      anyItem: '[data-testid*="user-query"], [data-testid*="user-message"], [data-testid="question"], [data-message-role="user"], [data-role="user"], [data-author="user"], [data-testid*="answer"], [data-testid*="assistant-message"], [data-message-role="assistant"], [data-role="assistant"], [data-author="assistant"], [data-message-author="assistant"]',
+      editor: '#ask-input[contenteditable="true"][role="textbox"]',
+      composer: '.bg-composer:has(#ask-input[contenteditable="true"])',
+      send: 'button[aria-label="Submit"]', stop: 'button[aria-label*="Stop" i], button[title*="Stop" i]',
+    }, conversationKey: () => "" }, "Perplexity"],
+    ["huggingchat.js", { id: "huggingchat", displayName: "HuggingChat", selectors: {
+      userItem: '[data-message-type="user"], [data-testid*="user-message"], [data-role="user"]',
+      assistantItem: '[data-message-role="assistant"], [data-testid*="assistant-message"], [data-role="assistant"]',
+      anyItem: '[data-message-type="user"], [data-testid*="user-message"], [data-role="user"], [data-message-role="assistant"], [data-testid*="assistant-message"], [data-role="assistant"]',
+      editor: 'textarea[placeholder="Ask anything"][role="combobox"]',
+      composer: 'div.relative:has(> textarea[placeholder="Ask anything"][role="combobox"])',
+      send: 'button[aria-label="Send message"]', stop: 'button[aria-label="Stop generating"]',
+    }, conversationKey: () => "" }, "HuggingChat"],
   ]) {
     currentFixture = fixture();
     if (file === "groq.js") {
       currentFixture.editors = [fakeElement("textarea", "", {}, false), currentFixture.editor];
       currentFixture.composers = [fakeElement("form", "", {}, false), currentFixture.composer];
     }
+    if (file === "perplexity.js") delete currentFixture.editor.value;
     const P = loadProvider(file, config, currentFixture);
     ok(`${label} provider identity and text-only capability`, P.id === config.id && P.displayName === config.displayName && !P.supportsVision);
     ok(`${label} user and assistant messages are recognized`, P.isUserItem(currentFixture.user) && P.isAssistantItem(currentFixture.assistant));
@@ -110,7 +127,7 @@ async function run() {
     ok(`${label} injected instruction stays concise`, P.promptExtra.length < 150);
     ok(`${label} visible composer is detected`, P.getEditor() === currentFixture.editor && P.composerFrame() === currentFixture.composer);
     await P.typeAndSend("bootstrap");
-    ok(`${label} sends through the site's native control`, P.userCount() === 2 && currentFixture.editor.value === "");
+    ok(`${label} sends through the site's native control`, P.userCount() === 2 && (typeof currentFixture.editor.value !== "string" || currentFixture.editor.value === ""));
   }
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

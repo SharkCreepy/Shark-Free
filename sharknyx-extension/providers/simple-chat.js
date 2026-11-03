@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Shared DOM adapter for simple text-chat sites (Duck.ai and Groq Chat).
+// Shared DOM adapter for simple text-chat sites (Duck.ai, Groq, Perplexity, HuggingChat).
 // Site-specific selectors and chat identity are supplied by each thin adapter.
 var ZSSimpleChat = (() => {
   "use strict";
@@ -8,6 +8,7 @@ var ZSSimpleChat = (() => {
   const BLOCK_TAGS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", "H1", "H2", "H3", "H4", "LI", "OL", "P", "PRE", "SECTION", "UL"]);
   const CMD_SHAPE = /\"(?:command|tool)\"\s*:\s*\"|###\s*(?:LUA|MCP_TOOL)\s*###/i;
   const RE = {
+    tpmLimit: /request\s+too\s+large\s+for\s+model|tokens?\s+per\s+minute(?:\s*\(\s*TPM\s*\))?.{0,100}\b(?:limit|requested|exceed(?:ed|s)?)\b|\bTPM\b.{0,80}\b(?:limit|requested|exceed(?:ed|s)?)\b/i,
     contextLimit: /conversation.{0,30}(too long|limit)|context.{0,30}(limit|exceeded)|maximum.{0,20}context|token.{0,10}limit|start.{0,20}new.{0,20}chat/i,
     tooLong: /conversation.{0,30}(too long|getting too long)|context.{0,20}(too long|limit)|maximum.{0,20}context/i,
     busy: /temporarily unavailable|try again later|too many requests|rate limit|something went wrong/i,
@@ -207,11 +208,18 @@ var ZSSimpleChat = (() => {
     }
     function stopGeneration() { const button = stopButton(); if (button) { try { button.click(); } catch {} } }
 
+    function classifyErrorText(text) {
+      const value = String(text || "");
+      if (RE.tpmLimit.test(value)) return "tpm_limit";
+      if (RE.contextLimit.test(value)) return "context_limit";
+      return "";
+    }
+
     function scanError() {
       for (const el of queryAll(S.error || '[role="alert"], [class*="error" i]')) {
         if (el.closest("#zs-root") || allItems().some((item) => item.contains(el))) continue;
         const text = (el.innerText || el.textContent || "").trim();
-        if (text.length > 8 && text.length < 600 && RE.contextLimit.test(text)) return text.slice(0, 240);
+        if (text.length > 8 && text.length < 600 && classifyErrorText(text)) return text.slice(0, 500);
       }
       return getEditor() ? null : `The ${config.displayName} input box disappeared (session ended?).`;
     }
@@ -259,6 +267,7 @@ var ZSSimpleChat = (() => {
     return {
       id: config.id,
       displayName: config.displayName,
+      portalModels: Array.isArray(config.portalModels) ? config.portalModels : [],
       supportsVision: false,
       timings,
       reliableCounts: true,
@@ -276,7 +285,7 @@ var ZSSimpleChat = (() => {
       isGenerating, isBusyNow, isHardGenerating,
       enforceComposer, ensureComposerReady, captchaPresent, overlayBlocking,
       turnHalted, findContinueBtn: () => null, clickContinueBtn: () => false,
-      scanError, isTooLongMsg, isBusyMsg,
+      scanError, classifyErrorText, isTooLongMsg, isBusyMsg,
       conversationKey, installSendHooks, findToolBlockSpot,
       promptExtra: PROMPT_EXTRA,
     };

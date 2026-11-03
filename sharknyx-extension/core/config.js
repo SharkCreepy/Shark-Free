@@ -34,6 +34,43 @@ const ZS = (() => {
     return "tool";
   }
 
+  // Normalize the common multi_edit patch shape for the pre-execution review UI.
+  // Keep a raw JSON fallback so an unfamiliar schema is still visible to the user.
+  function scriptEditReviewPayload(args) {
+    const input = args && typeof args === "object" ? args : {};
+    let raw = "{}";
+    try { raw = JSON.stringify(input, null, 2); } catch {}
+    const firstString = (obj, keys) => {
+      for (const key of keys) if (obj && typeof obj[key] === "string") return obj[key];
+      return "";
+    };
+    const source = Array.isArray(input.edits) ? input.edits
+      : Array.isArray(input.patches) ? input.patches
+      : (typeof input.old_string === "string" || typeof input.new_string === "string") ? [input]
+      : [];
+    const edits = source.map((patch, index) => {
+      const item = patch && typeof patch === "object" ? patch : {};
+      let patchRaw = "{}";
+      try { patchRaw = JSON.stringify(item, null, 2); } catch {}
+      const oldText = firstString(item, ["old_string", "old", "before", "search"]);
+      const newText = firstString(item, ["new_string", "new", "after", "replacement"]);
+      return {
+        index: index + 1,
+        oldText,
+        newText,
+        replaceAll: !!(item.replace_all || item.replaceAll),
+        readable: ["old_string", "old", "before", "search", "new_string", "new", "after", "replacement"]
+          .some((key) => typeof item[key] === "string"),
+        raw: patchRaw,
+      };
+    });
+    return {
+      target: firstString(input, ["target_file", "file_path", "script_path", "path", "target"]) || "Script path not specified",
+      edits,
+      raw,
+    };
+  }
+
   // Feedback strings sent back to the model so it can self-correct.
   const FEEDBACK = {
     // A command-shaped reply that could not be turned into a runnable call.
@@ -171,6 +208,8 @@ ${BT}
 For \`execute_luau\`, use a fenced block with \`###LUA###\` and \`###END_LUA###\`, not JSON. Use \`###LUA:Server###\` or \`###LUA:Client###\` only for live Play-mode work; plain \`###LUA###\` is Edit mode.
 
 RULES: Send at most one command block per reply and wait for its result before the next. Never only announce a command. Use few commands and change only what was asked. Keep explanations short and plain. Use exact listed parameters. Use this site's tools only when the user asks.
+
+SCRIPT REVIEW: SharkNyx pauses every \`multi_edit\` change for the user's Accept, Decline, or Change choice. Only Accept applies it. Never bypass review with another tool. If declined, do not retry or make the same edit; if Change is requested, revise and submit a new proposal.
 
 SAFETY: Never delete or clear broad targets. If scope is uncertain, inspect or ask first. On errors, read the result and adapt; check valid options before retrying invalid values. Test the bridge with a fresh command before saying it is offline. \`execute_luau\` is synchronous (~20 seconds): use \`return\`, avoid blocking, and give every \`WaitForChild\` a timeout. Use script/edit commands for persistent changes. Build requested UI/objects before scripting them. Use mesh/model tools for requested geometry; show code only if asked.
 
@@ -327,6 +366,7 @@ At the start of a fresh Agent chat, get the command list first. If that check re
     RESEND_MARKER,
     FEEDBACK,
     toolCategory,
+    scriptEditReviewPayload,
     buildSystemPrompt,
     buildPlanPrompt,
     compactTools,

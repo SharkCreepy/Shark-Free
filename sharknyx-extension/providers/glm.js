@@ -555,6 +555,12 @@ const ZSProvider = (() => {
   return {
     id: "glm",
     displayName: "GLM",
+    // Legacy/web choice labels requested for the portal; they are not proof that
+    // the consumer site currently offers these items or that a selection was applied.
+    portalModels: [
+      { id: "glm-4", name: "GLM-4" },
+      { id: "glm-4v", name: "GLM-4V" },
+    ],
     // GLM-5.2 is multimodal and z.ai's composer accepts image uploads (png/jpg via
     // the always-mounted file input; chip staged in .chip-scroll, upload complete
     // when its <img> src flips to the z-cdn-media CDN url - see attachImages). So

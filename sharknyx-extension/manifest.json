@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SharkNyx Free × Roblox Studio Agent",
-  "version": "1.1.1",
-  "description": "Turn ChatGPT, Gemini, Kimi, GLM, Qwen, Arena, Meta AI, Ptero.pro, Claude, Duck.ai or Groq Chat into a Roblox Studio agent that drives Studio through a local bridge.",
+  "version": "1.2.7",
+  "description": "Turn supported AI chats into a Roblox Studio agent, with a local SharkNyx Portal relay.",
   "permissions": [
     "storage"
   ],
@@ -19,9 +19,12 @@
     "https://claude.ai/*",
     "https://duck.ai/*",
     "https://console.groq.com/*",
+    "https://www.perplexity.ai/*",
+    "https://huggingface.co/*",
     "https://www.meta.ai/*",
     "https://meta.ai/*",
     "http://127.0.0.1/*",
+    "http://localhost/*",
     "ws://127.0.0.1/*"
   ],
   "background": {
@@ -42,6 +45,16 @@
     }
   },
   "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "portal-relay.js"
+      ],
+      "run_at": "document_start"
+    },
     {
       "matches": [
         "https://chatgpt.com/*",
@@ -201,6 +214,38 @@
         "core/parser.js",
         "providers/simple-chat.js",
         "providers/groq.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.perplexity.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/simple-chat.js",
+        "providers/perplexity.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://huggingface.co/chat*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/simple-chat.js",
+        "providers/huggingchat.js",
         "core/main.js"
       ],
       "css": [

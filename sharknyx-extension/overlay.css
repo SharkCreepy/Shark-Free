@@ -1048,3 +1048,88 @@ html.zs-light .zs-tip-sub,
 html.zs-light .zs-rbx-cur,
 html.zs-light .zs-tip-sep { color: #6b7280; }
 html.zs-light .zs-tip-rbx { color: #374151; }
+
+
+/* ── pre-execution script edit review ───────────────────────── */
+#zs-root .zs-review-backdrop {
+  position: fixed; inset: 0; z-index: 2147483647;
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box; padding: 16px;
+  background: rgba(5, 7, 14, 0.76); backdrop-filter: blur(4px);
+  color: #ececf1; pointer-events: auto;
+}
+#zs-root .zs-review-dialog {
+  display: flex; flex-direction: column; width: min(980px, calc(100vw - 24px));
+  max-height: min(92vh, 940px); overflow: hidden;
+  background: #17181e; color: #ececf1; border: 1px solid rgba(255,255,255,.13);
+  border-radius: 15px; box-shadow: 0 24px 80px rgba(0,0,0,.58);
+  font: 13px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  outline: none;
+}
+#zs-root .zs-review-header { padding: 17px 20px 12px; border-bottom: 1px solid rgba(255,255,255,.09); }
+#zs-root .zs-review-header h2 { margin: 0; color: #fff; font-size: 17px; line-height: 1.3; font-weight: 700; }
+#zs-root .zs-review-subtitle { margin-top: 5px; color: #a6a7b1; font-size: 12px; }
+#zs-root .zs-review-target { padding: 10px 20px; color: #c9c9d1; border-bottom: 1px solid rgba(255,255,255,.07); font: 11px/1.4 ui-monospace, "Cascadia Code", monospace; overflow-wrap: anywhere; }
+#zs-root .zs-review-list { min-height: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+#zs-root .zs-review-edit { min-width: 0; padding: 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 10px; background: rgba(255,255,255,.025); }
+#zs-root .zs-review-edit h3 { margin: 0 0 9px; color: #d6d6df; font-size: 11px; font-weight: 700; }
+#zs-root .zs-review-code-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 9px; }
+#zs-root .zs-review-code-panel { min-width: 0; overflow: hidden; border-radius: 7px; background: rgba(0,0,0,.23); }
+#zs-root .zs-review-code-label { padding: 6px 8px; color: #aeb0ba; border-bottom: 1px solid rgba(255,255,255,.07); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }
+#zs-root .zs-review-code-panel pre,
+#zs-root .zs-review-raw { box-sizing: border-box; max-height: 24vh; overflow: auto; margin: 0; padding: 8px; color: #e0e2e9; white-space: pre; tab-size: 2; font: 11px/1.45 ui-monospace, "Cascadia Code", "SFMono-Regular", monospace; }
+#zs-root .zs-review-raw { max-height: 34vh; }
+#zs-root .zs-review-actions,
+#zs-root .zs-review-request-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px 15px; border-top: 1px solid rgba(255,255,255,.08); }
+#zs-root .zs-review-actions button,
+#zs-root .zs-review-request-actions button { min-height: 36px; padding: 7px 13px; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; background: rgba(255,255,255,.07); color: #ececf1; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+#zs-root .zs-review-actions button:hover,
+#zs-root .zs-review-request-actions button:hover { filter: brightness(1.14); }
+#zs-root .zs-review-actions .zs-review-action-accept { background: #11734a; border-color: #168657; color: white; }
+#zs-root .zs-review-actions .zs-review-action-decline { background: rgba(185,28,28,.16); border-color: rgba(248,113,113,.38); color: #ffb7b7; margin-right: auto; }
+#zs-root .zs-review-actions .zs-review-action-change,
+#zs-root .zs-review-request-actions .zs-review-action-change { background: rgba(99,102,241,.18); border-color: rgba(129,140,248,.38); }
+#zs-root .zs-review-request { padding: 14px 18px 0; }
+#zs-root .zs-review-request[hidden],
+#zs-root .zs-review-actions[hidden] { display: none !important; }
+#zs-root .zs-review-request label { display: block; margin-bottom: 7px; color: #d7d7df; font-size: 12px; font-weight: 650; }
+#zs-root .zs-review-request textarea { box-sizing: border-box; display: block; width: 100%; resize: vertical; padding: 9px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; outline: none; background: rgba(0,0,0,.22); color: #f2f2f5; font: 12px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif; }
+#zs-root .zs-review-request textarea:focus { border-color: #818cf8; box-shadow: 0 0 0 2px rgba(129,140,248,.18); }
+#zs-root .zs-review-request-error { min-height: 16px; margin-top: 4px; color: #fca5a5; font-size: 11px; }
+#zs-root .zs-review-request-actions { padding: 8px 0 12px; border-top: 0; }
+#zs-root .zs-review-dialog button:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+html.zs-light #zs-root .zs-review-backdrop { background: rgba(20,25,35,.62); }
+html.zs-light #zs-root .zs-review-dialog { background: #fbfbfd; color: #202633; border-color: rgba(0,0,0,.15); }
+html.zs-light #zs-root .zs-review-header { border-bottom-color: rgba(0,0,0,.09); }
+html.zs-light #zs-root .zs-review-header h2 { color: #1f2430; }
+html.zs-light #zs-root .zs-review-subtitle,
+html.zs-light #zs-root .zs-review-target { color: #5b6472; }
+html.zs-light #zs-root .zs-review-target,
+html.zs-light #zs-root .zs-review-actions,
+html.zs-light #zs-root .zs-review-request-actions { border-color: rgba(0,0,0,.09); }
+html.zs-light #zs-root .zs-review-edit { background: #fff; border-color: rgba(0,0,0,.11); }
+html.zs-light #zs-root .zs-review-edit h3,
+html.zs-light #zs-root .zs-review-code-label,
+html.zs-light #zs-root .zs-review-request label { color: #374151; }
+html.zs-light #zs-root .zs-review-code-panel { background: #f2f4f7; }
+html.zs-light #zs-root .zs-review-code-label { border-bottom-color: rgba(0,0,0,.08); }
+html.zs-light #zs-root .zs-review-code-panel pre,
+html.zs-light #zs-root .zs-review-raw { color: #202633; }
+html.zs-light #zs-root .zs-review-actions button,
+html.zs-light #zs-root .zs-review-request-actions button { background: #f0f1f4; color: #202633; border-color: rgba(0,0,0,.14); }
+html.zs-light #zs-root .zs-review-actions .zs-review-action-accept { background: #11734a; color: #fff; border-color: #168657; }
+html.zs-light #zs-root .zs-review-actions .zs-review-action-decline { background: #fff1f2; color: #991b1b; border-color: #fecaca; }
+html.zs-light #zs-root .zs-review-actions .zs-review-action-change,
+html.zs-light #zs-root .zs-review-request-actions .zs-review-action-change { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+html.zs-light #zs-root .zs-review-request textarea { background: #fff; color: #202633; border-color: rgba(0,0,0,.18); }
+@media (max-width: 650px) {
+  #zs-root .zs-review-backdrop { padding: 8px; }
+  #zs-root .zs-review-dialog { width: calc(100vw - 16px); max-height: 94vh; }
+  #zs-root .zs-review-header { padding: 14px 15px 10px; }
+  #zs-root .zs-review-target { padding: 8px 15px; }
+  #zs-root .zs-review-list { padding: 10px; }
+  #zs-root .zs-review-code-grid { grid-template-columns: minmax(0,1fr); }
+  #zs-root .zs-review-code-panel pre { max-height: 19vh; }
+  #zs-root .zs-review-actions { padding: 10px; gap: 6px; }
+  #zs-root .zs-review-actions button { padding-inline: 9px; }
+}

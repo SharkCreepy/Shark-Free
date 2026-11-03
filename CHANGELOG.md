@@ -2,6 +2,93 @@
 
 All notable changes to SharkNyx Free are documented here.
 
+## [1.2.7] - 2026-11-03
+
+### Changed
+- Remove Portal-specific provider Login popups, automatic popup closing, and pushed provider account-status monitoring.
+- Portal sends now require an already-open matching provider tab and visibly activate it; never create an inactive/background provider tab.
+- Keep provider sign-in detection local to an explicit send; do not inspect password values, cookies, or tokens.
+- Keep the existing extension action popup, provider adapters, local relay origin checks, and Roblox Agent/script-review safeguards.
+
+## [1.2.6] - 2026-10-31 (local paired packaging build)
+
+### Changed
+- Bump the local extension manifest version to 1.2.6 for the Portal v1.3.0 package pairing; the extension provider and relay implementation is unchanged in this build.
+- DeepSeek remains absent from extension host permissions, login monitoring, provider allowlists, and automated page access. The Portal's new DeepSeek option is a manual copy/open/paste handoff only.
+- This is a local test bundle; no GitHub release was published.
+
+## [1.2.5] - 2026-10-30 (local test build)
+
+### Fixed
+- Detect Groq 413 “Request too large for model” and tokens-per-minute/TPM budget notices as a distinct provider rejection, including when rendered inside the reply.
+- Show the allowed/requested TPM counts and concise recovery advice in the Portal; never silently trim or automatically resend a rejected prompt.
+- Keep context-window errors separate from account rate limits and sign-in status.
+
+### Changed
+- Bump the local extension version to 1.2.5. This is a local hotfix build, not a GitHub release.
+
+## [1.2.4] - 2026-10-30 (local test build)
+
+### Added
+- **Portal account connections:** show per-provider Connected/Not connected state and open a small official-provider Login popup only after a user clicks Login.
+- Confirm sign-in only from a usable provider-page composer; auto-close the tracked Login popup after confirmation and store only non-sensitive status/timestamp data.
+- **Background Portal Chat:** route prompts through inactive provider tabs, retain a confirmed tab for conversation context, and do not foreground provider tabs. Close only temporary unconfirmed tabs.
+- Add HuggingChat Llama 3.3/Llama 3.2 and Mistral Large 4 Preview/Small 3.1/NeMo fallback model labels, plus GLM-4 and GLM-4V.
+- Select Kimi K3.1 Pro, K2.8 Preview, or Instant from the exact visible model-menu option and verify the resulting label before sending.
+
+### Fixed
+- Keep password values, cookies, and session tokens out of extension auth detection; no Cookies API permission or cookie API use.
+- Roblox Agent mode never activates a provider tab and fails closed when its existing visible-page safety gate is not satisfied.
+
+### Changed
+- Bump local extension version to 1.2.4. This test build is not a GitHub release. HuggingChat's current signed-in picker and the new provider DOM flows still need live-browser verification.
+
+## [1.2.3] - 2026-10-29 (local test build)
+
+### Added
+- **Portal Roblox Agent mode:** add an explicit opt-in from Portal Chat to the existing provider-page Agent loop; plain Chat remains isolated from Studio tools.
+- Report Extension, local bridge, and Roblox Studio connection separately. Agent mode requires live bridge/Studio status and can foreground an already-open provider tab for the existing visibility gate, returning to the Portal afterward when appropriate.
+
+### Fixed
+- Preserve the existing Agent parser, tool allow/block rules, Plan-mode block, foreground visibility gate, and `multi_edit` confirmation flow for Portal Agent requests.
+- Portal Stop cancels the matching provider generation and the active Agent loop; requests fail closed when the bridge or Studio MCP is unavailable.
+
+### Changed
+- Bump the local extension version to 1.2.3. This is not a GitHub release.
+
+## [1.2.2] - 2026-10-29 (local test build)
+
+### Fixed
+- **Portal/Agent isolation:** reserve a provider tab while session state hydrates; prevent Agent startup, loop entry, tool dispatch, auto-resume, and system-prompt fallback during Portal activity.
+- **Race-safe Stop:** register requests before async provider-tab lookup, cancel in-flight lookups, and retain a short-lived Portal-tab-bound cancellation marker if STOP arrives before SEND.
+- Validate canonical Base64, including pad bits, and PNG/JPEG/GIF/WebP signatures at both local extension relay boundaries; reject malformed or MIME-mismatched image bytes.
+- Keep model/effort warnings visible in Portal chat and label the provider-page model as unverified when no control mapping was applied.
+- Start the extension response deadline before sending so it expires before the Portal's own request timer.
+
+### Changed
+- Bump the local extension version to 1.2.2 for the Portal relay hardening build. This is not a GitHub release.
+
+## [1.2.1] - 2026-10-29 (local test build)
+
+### Added
+- **Local Portal relay:** register an origin-checked loopback content script and route Portal `PING`, `LIST_PROVIDERS`, `SEND_MESSAGE`, and `STOP_MESSAGE` requests through the extension service worker to an already-open provider tab.
+- Stream provider response progress back to the originating Portal tab; validate locally selected image attachments and reject images for adapters without vision support.
+- Keep Portal chats out of the Roblox Agent/Plan tool loop; refuse Portal requests when a SharkNyx session is active in the target provider tab.
+
+### Changed
+- Return explicit warnings when the Portal's model or Claude effort selection has no verified provider-page mapping; never claim those settings were applied.
+- Bump the local extension version to 1.2.1 for the Portal relay test build. This is not a GitHub release.
+
+## [1.2.0] - 2026-10-29 (local test build)
+
+### Added
+- **Perplexity and HuggingChat providers:** register both sites with shared chat adapters, provider-menu links, popup detection, and background status routing.
+- **Script edit review:** pause every `multi_edit` before bridge execution and show old/proposed code with Accept, Decline, or Change actions. Change requests return to the AI for a revised proposal; no edit runs until accepted.
+- Record observed public-page DOM markers and verification limits in `AI_PROVIDER_DOM_NOTES.md`.
+
+### Changed
+- Bump the local extension version to 1.2.0 for testing. This build is not published to GitHub.
+
 ## [1.1.1] - 2026-10-28
 
 ### Fixed
