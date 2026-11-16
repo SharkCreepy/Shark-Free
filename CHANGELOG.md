@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to SharkNyx Free are documented here.
+## [1.5.10] - 2026-11-16
+### Fixed
+- Work around Windows OpenCode Desktop local-stdio MCP startup failures by exposing SharkNyx as a loopback Streamable HTTP MCP endpoint at `http://127.0.0.1:17614/mcp`.
+- Make the bridge manage the HTTP endpoint lifecycle and report its readiness in the bridge log; OpenCode no longer needs to launch SharkNyx's Python adapter itself.
+- Clarify the Roblox Studio prerequisite: Assistant Settings → MCP Servers → Enable Studio as MCP server.
+### Verified
+- Exercise HTTP MCP initialize, tool listing, calls, text/image results, notifications, and endpoint health against a mock bridge; verify OpenCode's MCP client connects to the remote endpoint.
+
 ## [1.5.9] - 2026-11-16
 ### Added
 - Native OpenCode desktop/CLI integration: `sharknyx_opencode_mcp.py` exposes the running Roblox bridge as a local stdio MCP server, forwarding tool schemas, calls, text, and image results.

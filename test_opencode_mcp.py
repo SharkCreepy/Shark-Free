@@ -114,8 +114,10 @@ class OpenCodeConfigTests(unittest.TestCase):
             self.assertEqual(data["model"], "provider/model")
             self.assertIn("existing", data["mcp"]["servers"])
             added = data["mcp"]["servers"]["sharknyx-roblox"]
+            self.assertEqual(added["type"], "remote")
+            self.assertEqual(added["url"], "http://127.0.0.1:17614/mcp")
+            self.assertFalse(added["oauth"])
             self.assertFalse(added["codemode"])
-            self.assertEqual(added["command"][1], str(ROOT / "sharknyx_opencode_mcp.py"))
             self.assertTrue(path.with_suffix(".json.bak").exists())
             self.assertTrue(installer.remove(path))
             data = json.loads(path.read_text(encoding="utf-8"))

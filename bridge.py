@@ -26,6 +26,8 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 
 try:
     # Sibling script (same folder as bridge.py, which Python puts on sys.path
@@ -74,8 +76,9 @@ def _enable_ansi_colors():
 HOST = "127.0.0.1"
 # Keep in sync with sharknyx-extension/manifest.json "version" - printed at
 # startup so a user's terminal output alone tells us which build they're on.
-BRIDGE_VERSION = "1.5.9"
+BRIDGE_VERSION = "1.5.10"
 PORT = int(os.environ.get("ZS_BRIDGE_PORT", "17613"))
+OPENCODE_MCP_PORT = int(os.environ.get("ZS_OPENCODE_MCP_PORT", "17614"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "config.json")
 
@@ -1791,6 +1794,52 @@ async def _supervised(name, coro_factory):
             await asyncio.sleep(5)
 
 
+def _start_opencode_http_mcp():
+    """Run a loopback Streamable HTTP MCP endpoint beside the WS bridge."""
+    script = os.path.join(HERE, "sharknyx_opencode_http.py")
+    if not os.path.isfile(script):
+        log(f"OpenCode HTTP MCP helper is missing: {script}", "rd")
+        return None
+    try:
+        from sharknyx_opencode_http import create_server
+        server = create_server(HOST, OPENCODE_MCP_PORT, f"ws://{HOST}:{PORT}")
+        thread = threading.Thread(
+            target=server.serve_forever, kwargs={"poll_interval": 0.5},
+            name="opencode-http-mcp", daemon=True,
+        )
+        thread.start()
+    except Exception as exc:
+        log(f"Could not start OpenCode HTTP MCP endpoint: {exc}", "rd")
+        return None
+
+    health_url = f"http://{HOST}:{OPENCODE_MCP_PORT}/health"
+    for _ in range(12):
+        try:
+            with urllib.request.urlopen(health_url, timeout=0.5) as response:
+                if response.status == 200:
+                    log(f"OpenCode remote MCP ready at http://{HOST}:{OPENCODE_MCP_PORT}/mcp", "gr")
+                    return server, thread
+        except (OSError, urllib.error.URLError):
+            time.sleep(0.25)
+    log(f"OpenCode HTTP MCP did not become ready at {health_url}.", "rd")
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=2)
+    return None
+
+
+def _stop_opencode_http_mcp(server_thread):
+    if server_thread is None:
+        return
+    server, thread = server_thread
+    try:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+    except Exception as exc:
+        log(f"Could not stop OpenCode HTTP MCP endpoint cleanly: {exc}", "yl")
+
+
 async def main():
     print(f"\n{C['cy']}  SharkNyx Bridge v{BRIDGE_VERSION}{C['reset']}  {C['dim']}- Roblox Studio - ws://{HOST}:{PORT}{C['reset']}\n")
     log(f"===== BRIDGE START  v{BRIDGE_VERSION}  pid={os.getpid()}  log={LOG_PATH} =====", "cy")
@@ -2023,11 +2072,15 @@ async def main():
 
     async with server_ctx:
         log(f"listening on ws://{HOST}:{PORT}  - load the extension and open a supported AI chat", "cy")
+        http_mcp_proc = _start_opencode_http_mcp()
         asyncio.create_task(_supervised("server_watch", server_watch))
         asyncio.create_task(_boot_and_diagnose())
         asyncio.create_task(_early_studio_guidance())
         asyncio.create_task(_early_status_pushes())
-        await asyncio.Future()  # run forever
+        try:
+            await asyncio.Future()  # run forever
+        finally:
+            _stop_opencode_http_mcp(http_mcp_proc)
 
 
 if __name__ == "__main__":

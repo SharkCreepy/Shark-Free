@@ -172,8 +172,8 @@ if exist "%~dp0install_opencode_mcp.py" (
         echo         WARNING: OpenCode setup did not complete; the Roblox bridge will still start.
         call :log "WARNING: native OpenCode MCP registration failed."
     ) else (
-        echo         OpenCode MCP entry ready. Start OpenCode after this bridge is running.
-        call :log "Native OpenCode MCP server registered."
+        echo         OpenCode MCP entry ready. Start OpenCode after the bridge reports HTTP MCP ready.
+        call :log "OpenCode remote HTTP MCP registered."
     )
 ) else (
     echo         OpenCode adapter not found; continuing with browser extension mode.

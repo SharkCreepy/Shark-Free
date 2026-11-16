@@ -19,10 +19,39 @@ from pathlib import Path
 SERVER_ID = "sharknyx-roblox"
 ROOT = Path(__file__).resolve().parent
 MCP_SCRIPT = ROOT / "sharknyx_opencode_mcp.py"
+HTTP_MCP_SCRIPT = ROOT / "sharknyx_opencode_http.py"
 
 
 def config_path() -> Path:
     return Path.home() / ".config" / "opencode" / "opencode.json"
+
+
+def find_opencode_cli() -> str | None:
+    """Find the CLI, including the sidecar shipped with Windows Desktop."""
+    for name in ("opencode", "opencode-cli", "opencode-cli.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    if os.name != "nt":
+        return None
+    roots = [
+        os.environ.get("ProgramFiles"),
+        os.environ.get("ProgramFiles(x86)"),
+        os.environ.get("LOCALAPPDATA"),
+    ]
+    candidates = []
+    for root in filter(None, roots):
+        base = Path(root)
+        for folder in (base / "OpenCode", base / "Programs" / "OpenCode"):
+            candidates.extend((
+                folder / "opencode-cli.exe",
+                folder / "resources" / "opencode-cli.exe",
+                folder / "resources" / "app" / "opencode-cli.exe",
+            ))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
 
 
 def _strip_jsonc(text: str) -> str:
@@ -112,15 +141,21 @@ def load_config(path: Path) -> dict:
 
 
 def _entry() -> dict:
-    bridge_port = os.environ.get("ZS_BRIDGE_PORT", "17613")
+    http_port = os.environ.get("ZS_OPENCODE_MCP_PORT", "17614")
     return {
-        "type": "local",
-        "command": [sys.executable, str(MCP_SCRIPT)],
-        "cwd": str(ROOT),
-        "environment": {"SHARKNYX_BRIDGE_URL": f"ws://127.0.0.1:{bridge_port}"},
+        "type": "remote",
+        "url": f"http://127.0.0.1:{http_port}/mcp",
+        "oauth": False,
         "timeout": 180000,
         "codemode": False,
     }
+
+
+def _configured_entry(entry: dict, form: str) -> dict:
+    configured = dict(entry)
+    if form == "direct" and os.name == "nt":
+        configured["enabled"] = True
+    return configured
 
 
 def _server_map(mcp: dict):
@@ -161,33 +196,29 @@ def _configure_entry(config: dict, entry: dict) -> bool:
             form = "nested"
     if not isinstance(servers, dict):
         raise RuntimeError("The OpenCode MCP server list is not an object; left config untouched.")
-    configured = dict(entry)
-    if form == "direct" and os.name == "nt":
-        configured["enabled"] = True
+    configured = _configured_entry(entry, form)
     changed = servers.get(SERVER_ID) != configured
     servers[SERVER_ID] = configured
     return changed
 
 
 def install(path: Path | None = None) -> bool:
-    if not MCP_SCRIPT.is_file():
-        raise RuntimeError(f"Missing native MCP adapter: {MCP_SCRIPT}")
+    if not HTTP_MCP_SCRIPT.is_file():
+        raise RuntimeError(f"Missing OpenCode HTTP MCP endpoint: {HTTP_MCP_SCRIPT}")
     use_cli = path is None
     path = path or config_path()
     entry = _entry()
     config = load_config(path)
     mcp = config.get("mcp") if isinstance(config.get("mcp"), dict) else {}
-    servers, _ = _server_map(mcp)
-    if servers is not None and servers.get(SERVER_ID) == entry:
+    servers, form = _server_map(mcp)
+    if servers is not None and servers.get(SERVER_ID) == _configured_entry(entry, form):
         return False
 
-    cli = shutil.which("opencode") if use_cli else None
+    cli = find_opencode_cli() if use_cli else None
     if cli:
         _backup_config(path)
         command = [
-            cli, "mcp", "add", SERVER_ID, "--global",
-            "--env", f"SHARKNYX_BRIDGE_URL={entry['environment']['SHARKNYX_BRIDGE_URL']}",
-            "--", sys.executable, str(MCP_SCRIPT),
+            cli, "mcp", "add", SERVER_ID, "--global", "--url", entry["url"],
         ]
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
@@ -205,6 +236,8 @@ def install(path: Path | None = None) -> bool:
             message = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
             print(f"OpenCode CLI registration failed; using config fallback ({message}).", file=sys.stderr)
 
+    if use_cli and not cli:
+        print("OpenCode CLI sidecar not found; writing a compatible config entry directly.", file=sys.stderr)
     changed = _configure_entry(config, entry)
     save_config(path, config)
     return changed
@@ -270,6 +303,7 @@ def main() -> int:
                 print(f"Registered SharkNyx for OpenCode in: {path}")
             else:
                 print(f"SharkNyx is already registered for OpenCode in: {path}")
+            print(f"Transport: remote Streamable HTTP at {_entry()['url']} (served by start.bat).")
             print("Restart OpenCode after start.bat has started the SharkNyx bridge.")
         return 0
     except Exception as exc:
