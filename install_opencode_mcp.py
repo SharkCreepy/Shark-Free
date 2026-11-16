@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -109,28 +111,101 @@ def load_config(path: Path) -> dict:
     return config
 
 
-def install(path: Path) -> bool:
-    if not MCP_SCRIPT.is_file():
-        raise RuntimeError(f"Missing native MCP adapter: {MCP_SCRIPT}")
-    config = load_config(path)
-    mcp = config.setdefault("mcp", {})
-    if not isinstance(mcp, dict):
-        raise RuntimeError("The 'mcp' setting is not an object; left config untouched.")
-    servers = mcp.setdefault("servers", {})
-    if not isinstance(servers, dict):
-        raise RuntimeError("The 'mcp.servers' setting is not an object; left config untouched.")
-    entry = {
+def _entry() -> dict:
+    bridge_port = os.environ.get("ZS_BRIDGE_PORT", "17613")
+    return {
         "type": "local",
         "command": [sys.executable, str(MCP_SCRIPT)],
         "cwd": str(ROOT),
-        "environment": {
-            "SHARKNYX_BRIDGE_URL": f"ws://127.0.0.1:{os.environ.get('ZS_BRIDGE_PORT', '17613')}"
-        },
+        "environment": {"SHARKNYX_BRIDGE_URL": f"ws://127.0.0.1:{bridge_port}"},
         "timeout": 180000,
         "codemode": False,
     }
-    changed = servers.get(SERVER_ID) != entry
-    servers[SERVER_ID] = entry
+
+
+def _server_map(mcp: dict):
+    nested = mcp.get("servers")
+    if isinstance(nested, dict):
+        return nested, "nested"
+    direct = mcp.get(SERVER_ID)
+    if isinstance(direct, dict):
+        return mcp, "direct"
+    if any(
+        isinstance(value, dict) and value.get("type") in ("local", "remote")
+        for value in mcp.values()
+    ):
+        return mcp, "direct"
+    return None, None
+
+
+def _backup_config(path: Path) -> None:
+    if path.exists():
+        backup = path.with_suffix(path.suffix + ".bak")
+        if not backup.exists():
+            backup.write_bytes(path.read_bytes())
+
+
+def _configure_entry(config: dict, entry: dict) -> bool:
+    mcp = config.setdefault("mcp", {})
+    if not isinstance(mcp, dict):
+        raise RuntimeError("The 'mcp' setting is not an object; left config untouched.")
+    servers, form = _server_map(mcp)
+    if servers is None:
+        # Current OpenCode config uses mcp.servers. Older Windows builds have
+        # accepted server entries directly under mcp; use that shape only when
+        # no CLI is available to write the installed version's preferred form.
+        if os.name == "nt":
+            servers, form = mcp, "direct"
+        else:
+            servers = mcp.setdefault("servers", {})
+            form = "nested"
+    if not isinstance(servers, dict):
+        raise RuntimeError("The OpenCode MCP server list is not an object; left config untouched.")
+    configured = dict(entry)
+    if form == "direct" and os.name == "nt":
+        configured["enabled"] = True
+    changed = servers.get(SERVER_ID) != configured
+    servers[SERVER_ID] = configured
+    return changed
+
+
+def install(path: Path | None = None) -> bool:
+    if not MCP_SCRIPT.is_file():
+        raise RuntimeError(f"Missing native MCP adapter: {MCP_SCRIPT}")
+    use_cli = path is None
+    path = path or config_path()
+    entry = _entry()
+    config = load_config(path)
+    mcp = config.get("mcp") if isinstance(config.get("mcp"), dict) else {}
+    servers, _ = _server_map(mcp)
+    if servers is not None and servers.get(SERVER_ID) == entry:
+        return False
+
+    cli = shutil.which("opencode") if use_cli else None
+    if cli:
+        _backup_config(path)
+        command = [
+            cli, "mcp", "add", SERVER_ID, "--global",
+            "--env", f"SHARKNYX_BRIDGE_URL={entry['environment']['SHARKNYX_BRIDGE_URL']}",
+            "--", sys.executable, str(MCP_SCRIPT),
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        except Exception as exc:
+            result = None
+            print(f"OpenCode CLI registration unavailable; using config fallback ({exc}).", file=sys.stderr)
+        if result is not None and result.returncode == 0:
+            if result.stdout.strip():
+                print(result.stdout.strip())
+            config = load_config(path)
+            changed = _configure_entry(config, entry)
+            save_config(path, config)
+            return changed
+        if result is not None:
+            message = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
+            print(f"OpenCode CLI registration failed; using config fallback ({message}).", file=sys.stderr)
+
+    changed = _configure_entry(config, entry)
     save_config(path, config)
     return changed
 
@@ -140,10 +215,18 @@ def remove(path: Path) -> bool:
         return False
     config = load_config(path)
     mcp = config.get("mcp")
-    servers = mcp.get("servers") if isinstance(mcp, dict) else None
-    if not isinstance(servers, dict) or SERVER_ID not in servers:
+    if not isinstance(mcp, dict):
         return False
-    del servers[SERVER_ID]
+    removed = False
+    nested = mcp.get("servers")
+    if isinstance(nested, dict) and SERVER_ID in nested:
+        del nested[SERVER_ID]
+        removed = True
+    if SERVER_ID in mcp and isinstance(mcp[SERVER_ID], dict):
+        del mcp[SERVER_ID]
+        removed = True
+    if not removed:
+        return False
     save_config(path, config)
     return True
 

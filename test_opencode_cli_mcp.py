@@ -2,6 +2,8 @@
 import asyncio
 import json
 import os
+import shutil
+import socket
 import sys
 import tempfile
 import unittest
@@ -14,6 +16,7 @@ OPENCODE = os.environ.get("OPENCODE_BIN", "opencode")
 
 
 class NativeOpenCodeIntegrationTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which(OPENCODE), "OpenCode CLI is not installed")
     def test_opencode_loads_the_global_sharknyx_mcp_entry(self):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
@@ -34,6 +37,88 @@ class NativeOpenCodeIntegrationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
             self.assertIn(str(config_path), result.stdout)
             self.assertIn("sharknyx-roblox", result.stdout)
+
+    @unittest.skipUnless(shutil.which(OPENCODE), "OpenCode CLI is not installed")
+    def test_opencode_cli_connects_to_the_native_bridge(self):
+        async def scenario():
+            bridge_requests = []
+
+            async def fake_bridge(ws, path=None):
+                await ws.send(json.dumps({"type": "connected", "mcp_alive": True}))
+                async for raw in ws:
+                    request = json.loads(raw)
+                    bridge_requests.append(request)
+                    if request.get("type") == "list_tools":
+                        await ws.send(json.dumps({
+                            "type": "tools", "id": request["id"],
+                            "tools": [{
+                                "name": "get_studio_state",
+                                "description": "Read Roblox Studio state.",
+                                "inputSchema": {"type": "object", "properties": {}},
+                            }],
+                        }))
+
+            bridge = await websockets.serve(fake_bridge, "127.0.0.1", 0)
+            bridge_port = bridge.sockets[0].getsockname()[1]
+            with socket.socket() as probe:
+                probe.bind(("127.0.0.1", 0))
+                opencode_port = probe.getsockname()[1]
+
+            temp = tempfile.TemporaryDirectory()
+            config_path = Path(temp.name) / "opencode.json"
+            config_path.write_text(json.dumps({
+                "mcp": {"servers": {"sharknyx-roblox": {
+                    "type": "local",
+                    "command": [sys.executable, str(ROOT / "sharknyx_opencode_mcp.py")],
+                    "cwd": str(ROOT),
+                    "environment": {"SHARKNYX_BRIDGE_URL": f"ws://127.0.0.1:{bridge_port}"},
+                    "timeout": 180000,
+                    "codemode": False,
+                }}}
+            }), encoding="utf-8")
+            env = os.environ.copy()
+            env["OPENCODE_CONFIG"] = str(config_path)
+            env["OPENCODE_PASSWORD"] = "native-mcp-test"
+            env["OPENCODE_DISABLE_AUTOUPDATE"] = "1"
+            server_proc = await asyncio.create_subprocess_exec(
+                OPENCODE, "serve", "--hostname", "127.0.0.1", "--port", str(opencode_port),
+                cwd=str(ROOT), env=env,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            )
+            try:
+                ready = False
+                for _ in range(60):
+                    await asyncio.sleep(0.2)
+                    with socket.socket() as probe:
+                        ready = probe.connect_ex(("127.0.0.1", opencode_port)) == 0
+                    if ready:
+                        break
+                if not ready:
+                    raise AssertionError("OpenCode serve did not start")
+
+                output = ""
+                for _ in range(5):
+                    result = await self._run_cli(
+                        [OPENCODE, "mcp", "list", "--server", f"http://127.0.0.1:{opencode_port}"],
+                        env=env, cwd=ROOT,
+                    )
+                    output = result.stdout
+                    if "sharknyx-roblox" in output and "connected" in output.lower():
+                        break
+                    await asyncio.sleep(1)
+                return output, bridge_requests
+            finally:
+                if server_proc.returncode is None:
+                    server_proc.terminate()
+                    await asyncio.wait_for(server_proc.communicate(), timeout=10)
+                temp.cleanup()
+                bridge.close()
+                await bridge.wait_closed()
+
+        output, bridge_requests = asyncio.run(scenario())
+        self.assertIn("sharknyx-roblox", output)
+        self.assertIn("connected", output.lower())
+        self.assertTrue(any(item.get("type") == "list_tools" for item in bridge_requests))
 
     def test_native_stdio_server_lists_and_calls_bridge_tools(self):
         async def scenario():

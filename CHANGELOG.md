@@ -4,13 +4,13 @@ All notable changes to SharkNyx Free are documented here.
 ## [1.5.9] - 2026-11-16
 ### Added
 - Native OpenCode desktop/CLI integration: `sharknyx_opencode_mcp.py` exposes the running Roblox bridge as a local stdio MCP server, forwarding tool schemas, calls, text, and image results.
-- `install_opencode_mcp.py` merges the named server into OpenCode's global config, keeps unrelated settings, backs up an existing config, and supports removal with `--remove`.
+- `install_opencode_mcp.py` uses OpenCode's own MCP registration command when available, with a backed-up config fallback; it keeps unrelated settings and supports removal with `--remove`.
 - `start.bat` and `MacOS_Start.command` automatically register the native MCP server before launching the bridge; launch OpenCode after the bridge is up. No OpenCode browser UI or Portal is required for the native integration.
 ### Changed
 - Update the full package instructions to include the browser extension (manifest v1.2.9), Roblox bridge, `start.bat`, and native OpenCode adapter.
 ### Verified
-- OpenCode v2.3.0 reads the global MCP configuration.
-- Run eight MCP protocol, config-merge, stdio transport, and bridge-forwarding tests successfully.
+- OpenCode v2.3.0 discovers and connects the native server through its CLI; the first status check may show empty while the service initializes, then a retry reports connected.
+- Run 17 extension regression tests and ten MCP protocol, config-merge, stdio transport, and live OpenCode-to-mock-bridge tests successfully.
 
 ## [1.2.9] - 2026-11-16
 ### Added

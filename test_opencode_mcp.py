@@ -122,6 +122,21 @@ class OpenCodeConfigTests(unittest.TestCase):
             self.assertEqual(set(data["mcp"]["servers"]), {"existing"})
             self.assertEqual(data["model"], "provider/model")
 
+    def test_install_preserves_direct_mcp_layout(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "opencode.json"
+            path.write_text(json.dumps({"mcp": {
+                "existing": {"type": "remote", "url": "https://example.test/mcp", "enabled": True}
+            }}), encoding="utf-8")
+            self.assertTrue(installer.install(path))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIn("existing", data["mcp"])
+            self.assertIn("sharknyx-roblox", data["mcp"])
+            self.assertEqual(data["mcp"]["existing"]["url"], "https://example.test/mcp")
+            self.assertTrue(installer.remove(path))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(set(data["mcp"]), {"existing"})
+
     def test_notifications_do_not_get_responses(self):
         self.assertIsNone(asyncio.run(mcp.dispatch({
             "jsonrpc": "2.0", "method": "notifications/initialized",
