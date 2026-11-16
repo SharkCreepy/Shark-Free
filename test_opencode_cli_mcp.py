@@ -11,13 +11,18 @@ import urllib.request
 from pathlib import Path
 
 import websockets
+from install_opencode_mcp import find_opencode_cli
 
 ROOT = Path(__file__).resolve().parent
-OPENCODE = os.environ.get("OPENCODE_BIN", "opencode")
+OPENCODE = os.environ.get("OPENCODE_BIN") or find_opencode_cli() or "opencode"
+
+
+def _has_opencode():
+    return shutil.which(OPENCODE) is not None or Path(OPENCODE).is_file()
 
 
 class NativeOpenCodeIntegrationTests(unittest.TestCase):
-    @unittest.skipUnless(shutil.which(OPENCODE), "OpenCode CLI is not installed")
+    @unittest.skipUnless(_has_opencode(), "OpenCode CLI not found (PATH or Desktop sidecar)")
     def test_opencode_loads_the_global_sharknyx_mcp_entry(self):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
@@ -37,14 +42,13 @@ class NativeOpenCodeIntegrationTests(unittest.TestCase):
             server = data["mcp"]["servers"]["sharknyx-roblox"]
             self.assertEqual(server["type"], "remote")
             self.assertEqual(server["url"], "http://127.0.0.1:17614/mcp")
-            self.assertFalse(server["oauth"])
             result = asyncio.run(self._run_cli(
                 [OPENCODE, "debug", "config", "--standalone"], env=env, cwd=ROOT))
             self.assertEqual(result.returncode, 0, result.stdout)
             self.assertIn(str(config_path), result.stdout)
             self.assertIn("sharknyx-roblox", result.stdout)
 
-    @unittest.skipUnless(shutil.which(OPENCODE), "OpenCode CLI is not installed")
+    @unittest.skipUnless(_has_opencode(), "OpenCode CLI not found (PATH or Desktop sidecar)")
     def test_opencode_cli_connects_to_remote_http_bridge(self):
         async def scenario():
             bridge_requests = []
@@ -144,9 +148,6 @@ class NativeOpenCodeIntegrationTests(unittest.TestCase):
                     "mcp": {"servers": {"sharknyx-roblox": {
                         "type": "remote",
                         "url": f"http://127.0.0.1:{http_port}/mcp",
-                        "oauth": False,
-                        "timeout": 180000,
-                        "codemode": False,
                     }}}
                 }), encoding="utf-8")
                 env["OPENCODE_CONFIG"] = str(config_path)
@@ -168,7 +169,7 @@ class NativeOpenCodeIntegrationTests(unittest.TestCase):
                     raise AssertionError("OpenCode serve did not start")
 
                 output = ""
-                for _ in range(8):
+                for _ in range(30):
                     result = await self._run_cli(
                         [OPENCODE, "mcp", "list", "--server", f"http://127.0.0.1:{opencode_port}"],
                         env=env, cwd=ROOT,

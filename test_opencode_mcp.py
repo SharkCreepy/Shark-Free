@@ -3,7 +3,9 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import patch
 
 import websockets
 
@@ -117,7 +119,10 @@ class OpenCodeConfigTests(unittest.TestCase):
             self.assertEqual(added["type"], "remote")
             self.assertEqual(added["url"], "http://127.0.0.1:17614/mcp")
             self.assertFalse(added["oauth"])
-            self.assertFalse(added["codemode"])
+            self.assertFalse(added["disabled"])
+            self.assertNotIn("enabled", added)
+            self.assertNotIn("timeout", added)
+            self.assertNotIn("codemode", added)
             self.assertTrue(path.with_suffix(".json.bak").exists())
             self.assertTrue(installer.remove(path))
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -138,6 +143,41 @@ class OpenCodeConfigTests(unittest.TestCase):
             self.assertTrue(installer.remove(path))
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(set(data["mcp"]), {"existing"})
+
+    def test_direct_fallback_uses_v115_schema_and_enables_server(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "opencode.json"
+            path.write_text(json.dumps({"mcp": {
+                "existing": {"type": "remote", "url": "https://example.test/mcp"}
+            }}), encoding="utf-8")
+            self.assertTrue(installer.install(path))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            added = data["mcp"]["sharknyx-roblox"]
+            self.assertTrue(added["enabled"])
+            self.assertFalse(added["oauth"])
+            self.assertEqual(added["timeout"], 180000)
+            self.assertNotIn("codemode", added)
+
+    def test_successful_cli_registration_is_not_remerged(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "opencode.json"
+
+            def fake_cli(command, **kwargs):
+                path.write_text(json.dumps({"mcp": {"servers": {
+                    "sharknyx-roblox": {
+                        "type": "remote", "url": command[-1]
+                    }
+                }}}), encoding="utf-8")
+                return SimpleNamespace(returncode=0, stdout="registered", stderr="")
+
+            with patch.object(installer, "config_path", return_value=path), \
+                 patch.object(installer, "find_opencode_cli", return_value="opencode"), \
+                 patch.object(installer.subprocess, "run", side_effect=fake_cli):
+                self.assertTrue(installer.install())
+
+            data = json.loads(path.read_text(encoding="utf-8"))
+            added = data["mcp"]["servers"]["sharknyx-roblox"]
+            self.assertEqual(set(added), {"type", "url"})
 
     def test_notifications_do_not_get_responses(self):
         self.assertIsNone(asyncio.run(mcp.dispatch({

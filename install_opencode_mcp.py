@@ -145,16 +145,19 @@ def _entry() -> dict:
     return {
         "type": "remote",
         "url": f"http://127.0.0.1:{http_port}/mcp",
-        "oauth": False,
-        "timeout": 180000,
-        "codemode": False,
     }
 
 
-def _configured_entry(entry: dict, form: str) -> dict:
+def _configured_entry(entry: dict, form: str, from_cli: bool = False) -> dict:
     configured = dict(entry)
-    if form == "direct" and os.name == "nt":
-        configured["enabled"] = True
+    if from_cli:
+        return configured
+    if form == "direct":
+        # OpenCode v1.15.x uses the legacy direct map and a millisecond timeout.
+        configured.update({"enabled": True, "oauth": False, "timeout": 180000})
+    else:
+        # Current OpenCode uses mcp.servers and disabled (not enabled).
+        configured.update({"disabled": False, "oauth": False})
     return configured
 
 
@@ -180,7 +183,7 @@ def _backup_config(path: Path) -> None:
             backup.write_bytes(path.read_bytes())
 
 
-def _configure_entry(config: dict, entry: dict) -> bool:
+def _configure_entry(config: dict, entry: dict, from_cli: bool = False) -> bool:
     mcp = config.setdefault("mcp", {})
     if not isinstance(mcp, dict):
         raise RuntimeError("The 'mcp' setting is not an object; left config untouched.")
@@ -196,7 +199,7 @@ def _configure_entry(config: dict, entry: dict) -> bool:
             form = "nested"
     if not isinstance(servers, dict):
         raise RuntimeError("The OpenCode MCP server list is not an object; left config untouched.")
-    configured = _configured_entry(entry, form)
+    configured = _configured_entry(entry, form, from_cli=from_cli)
     changed = servers.get(SERVER_ID) != configured
     servers[SERVER_ID] = configured
     return changed
@@ -211,11 +214,20 @@ def install(path: Path | None = None) -> bool:
     config = load_config(path)
     mcp = config.get("mcp") if isinstance(config.get("mcp"), dict) else {}
     servers, form = _server_map(mcp)
-    if servers is not None and servers.get(SERVER_ID) == _configured_entry(entry, form):
-        return False
+    if servers is not None:
+        existing = servers.get(SERVER_ID)
+        if (
+            isinstance(existing, dict)
+            and existing.get("type") == "remote"
+            and existing.get("url") == entry["url"]
+            and existing.get("enabled", True) is not False
+            and existing.get("disabled", False) is not True
+        ):
+            return False
 
     cli = find_opencode_cli() if use_cli else None
     if cli:
+        before = path.read_bytes() if path.exists() else None
         _backup_config(path)
         command = [
             cli, "mcp", "add", SERVER_ID, "--global", "--url", entry["url"],
@@ -228,17 +240,18 @@ def install(path: Path | None = None) -> bool:
         if result is not None and result.returncode == 0:
             if result.stdout.strip():
                 print(result.stdout.strip())
-            config = load_config(path)
-            changed = _configure_entry(config, entry)
-            save_config(path, config)
-            return changed
+            after = path.read_bytes() if path.exists() else None
+            return after != before
         if result is not None:
             message = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
             print(f"OpenCode CLI registration failed; using config fallback ({message}).", file=sys.stderr)
 
     if use_cli and not cli:
         print("OpenCode CLI sidecar not found; writing a compatible config entry directly.", file=sys.stderr)
-    changed = _configure_entry(config, entry)
+    # The CLI may have partially written the file before returning a failure.
+    # Reload before fallback so unrelated settings are never overwritten.
+    config = load_config(path)
+    changed = _configure_entry(config, entry, from_cli=False)
     save_config(path, config)
     return changed
 
