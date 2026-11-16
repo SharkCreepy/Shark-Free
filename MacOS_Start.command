@@ -50,7 +50,7 @@ if [ ! -f "bridge.py" ]; then
 fi
 
 # --- 1. Find a usable Python (3.9+ with a working pip) ----------------------
-echo "  [1/3] Looking for Python 3.9+..."
+echo "  [1/4] Looking for Python 3.9+..."
 PY=""
 py_ok() {
     command -v "$1" >/dev/null 2>&1 || return 1
@@ -75,7 +75,7 @@ echo "        Found: $PY ($PY_VER)"
 log "Python found: $PY ($PY_VER)"
 
 # --- 2. Ensure the websockets library is installed --------------------------
-echo "  [2/3] Checking websockets library..."
+echo "  [2/4] Checking websockets library..."
 if ! "$PY" -c "import websockets" >/dev/null 2>&1; then
     echo "        Installing websockets - first time only..."
     log "websockets missing, installing via pip --user."
@@ -99,8 +99,24 @@ fi
 echo "        OK"
 log "websockets library OK."
 
-# --- 3. Replace any previous bridge holding the port ------------------------
-echo "  [3/3] Starting bridge..."
+# --- 3. Register native OpenCode MCP server --------------------------------
+echo
+echo "  [3/4] Connecting OpenCode to SharkNyx..."
+if [ -f "install_opencode_mcp.py" ]; then
+    if ! "$PY" install_opencode_mcp.py; then
+        echo "        WARNING: OpenCode setup did not complete; the Roblox bridge will still start."
+        log "WARNING: native OpenCode MCP registration failed."
+    else
+        echo "        OpenCode MCP entry ready. Start OpenCode after this bridge is running."
+        log "Native OpenCode MCP server registered."
+    fi
+else
+    echo "        OpenCode adapter not found; continuing with browser extension mode."
+    log "OpenCode MCP adapter missing; skipped native registration."
+fi
+
+# --- 4. Replace any previous bridge holding the port ------------------------
+echo "  [4/4] Starting bridge..."
 # lsof ships with macOS and most Linux distros. A previous bridge left running
 # (e.g. this launcher double-clicked twice) would keep the port bound and the
 # new instance would fail to bind - free it first.

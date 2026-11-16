@@ -34,7 +34,7 @@ if not exist "%~dp0bridge.py" (
 )
 
 REM --- 1. Find Python ---------------------------------------------------------
-echo   [1/3] Looking for Python...
+echo   [1/4] Looking for Python...
 set "PY="
 
 REM Prefer the py launcher - it never resolves to the Microsoft Store stub.
@@ -142,7 +142,7 @@ call :log "Python ready after winget install: %PY%"
 :install_deps
 REM --- 2. Install websockets --------------------------------------------------
 echo.
-echo   [2/3] Checking websockets library...
+echo   [2/4] Checking websockets library...
 %PY% -c "import websockets" >nul 2>nul
 if errorlevel 1 (
     echo         Installing websockets - first time only...
@@ -163,9 +163,26 @@ if errorlevel 1 (
 echo         OK
 call :log "websockets library OK"
 
-REM --- 3. Run the bridge ------------------------------------------------------
+REM --- 3. Register the native OpenCode MCP server ----------------------------
 echo.
-echo   [3/3] Starting bridge...
+echo   [3/4] Connecting OpenCode to SharkNyx...
+if exist "%~dp0install_opencode_mcp.py" (
+    %PY% "%~dp0install_opencode_mcp.py"
+    if errorlevel 1 (
+        echo         WARNING: OpenCode setup did not complete; the Roblox bridge will still start.
+        call :log "WARNING: native OpenCode MCP registration failed."
+    ) else (
+        echo         OpenCode MCP entry ready. Start OpenCode after this bridge is running.
+        call :log "Native OpenCode MCP server registered."
+    )
+) else (
+    echo         OpenCode adapter not found; continuing with browser extension mode.
+    call :log "OpenCode MCP adapter missing; skipped native registration."
+)
+
+REM --- 4. Run the bridge ------------------------------------------------------
+echo.
+echo   [4/4] Starting bridge...
 
 REM If a previous bridge is already listening on 17613, say so instead of
 REM silently killing it - a double-launch is easy to do by mistake (e.g.
