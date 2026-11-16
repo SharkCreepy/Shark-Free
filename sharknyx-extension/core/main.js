@@ -13,6 +13,10 @@
 
 (() => {
   "use strict";
+  // providers/opencode.js is injected into every localhost page because manifest
+  // match patterns cannot carry a port. It clears this flag on pages that are not
+  // the OpenCode web UI, so unrelated local apps get no SharkNyx UI at all.
+  if (window.__ZS_OPENCODE_PAGE__ === false) return;
   const P = ZSProvider;
   const T = P.timings;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -115,6 +119,10 @@
     { name: "Groq Chat", url: "https://console.groq.com/chat" },
     { name: "Perplexity", url: "https://www.perplexity.ai/" },
     { name: "HuggingChat", url: "https://huggingface.co/chat/" },
+    // OpenCode serves its own web UI from a local server. The port is whatever
+    // `opencode service status` prints (49374 on macOS/Linux, 28894 on Windows);
+    // 4096 is the documented `opencode serve --port` example used by this link.
+    { name: "OpenCode", url: "http://127.0.0.1:4096/" },
   ];
   // DeepSeek remains a directory link only (its SharkNyx provider was removed).
   // Free quotas change and are not directly comparable; do not label any site

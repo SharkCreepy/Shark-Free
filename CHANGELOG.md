@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to SharkNyx Free are documented here.
+## [1.2.9] - 2026-11-16
+### Added
+- OpenCode provider: the local OpenCode web UI (`opencode serve` / `opencode pair`) can now drive SharkNyx sessions like the hosted chat sites.
+- `providers/opencode.js` reads OpenCode's timeline rows, groups the assistant parts that share a message id, and excludes the model/latency footer from the reply.
+- `test-opencode.js` covers part grouping, reply extraction, the native send control, session keys, and the localhost page guard.
+### Changed
+- Add `http://127.0.0.1/*` and `http://localhost/*` host permissions plus a localhost content script; because match patterns cannot carry a port, `providers/opencode.js` marks the page and `core/main.js` returns before rendering any UI on unrelated local apps.
+- Bump the extension manifest to 1.2.9. OpenCode's port is not fixed: the UI is served wherever `opencode service status` reports, and the shortcut in the SharkNyx menu uses the documented 4096 example.
+### Verified
+- Inspect OpenCode 2.3.0 live (pairing, password sign-in, project selection, free-model turn) before writing selectors.
+- Run `node test-opencode.js` plus the existing parser, mode, provider, and edit-review smoke tests; all pass.
 
 ## [1.2.8] - 2026-11-16
 

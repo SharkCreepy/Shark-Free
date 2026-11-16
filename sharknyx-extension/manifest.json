@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SharkNyx Free \u00d7 Roblox Studio Agent",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Turn supported AI chats into a Roblox Studio agent.",
   "permissions": [
     "storage"
@@ -23,6 +23,8 @@
     "https://huggingface.co/*",
     "https://www.meta.ai/*",
     "https://meta.ai/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
     "ws://127.0.0.1/*"
   ],
   "background": {
@@ -259,6 +261,22 @@
         "core/config.js",
         "core/parser.js",
         "providers/qwen.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/opencode.js",
         "core/main.js"
       ],
       "css": [
