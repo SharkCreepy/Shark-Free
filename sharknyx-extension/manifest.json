@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SharkNyx Free × Roblox Studio Agent",
-  "version": "1.2.7",
-  "description": "Turn supported AI chats into a Roblox Studio agent, with a local SharkNyx Portal relay.",
+  "name": "SharkNyx Free \u00d7 Roblox Studio Agent",
+  "version": "1.2.8",
+  "description": "Turn supported AI chats into a Roblox Studio agent.",
   "permissions": [
     "storage"
   ],
@@ -23,8 +23,6 @@
     "https://huggingface.co/*",
     "https://www.meta.ai/*",
     "https://meta.ai/*",
-    "http://127.0.0.1/*",
-    "http://localhost/*",
     "ws://127.0.0.1/*"
   ],
   "background": {
@@ -45,16 +43,6 @@
     }
   },
   "content_scripts": [
-    {
-      "matches": [
-        "http://127.0.0.1/*",
-        "http://localhost/*"
-      ],
-      "js": [
-        "portal-relay.js"
-      ],
-      "run_at": "document_start"
-    },
     {
       "matches": [
         "https://chatgpt.com/*",

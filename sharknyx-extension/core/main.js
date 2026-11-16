@@ -1503,6 +1503,41 @@
     try { return JSON.stringify(a, null, 2); } catch { return String(a); }
   }
 
+  // Send a user-selected clarification through the provider's own composer.
+  // It remains a visible user turn; only this explicit button/text submission
+  // resumes the Agent loop. No answer is selected or sent automatically.
+  async function submitClarificationAnswer(answer) {
+    const value = String(answer || "").trim();
+    if (!value) return false;
+    if (!A.started || A.running || A.starting || A.toolRunning || P.isGenerating() || document.hidden) {
+      ui.toast("Wait for the AI to finish, and keep this provider tab visible before choosing an answer.");
+      return false;
+    }
+    const base = P.assistantCount();
+    A.userStopped = false;
+    A.stop = false;
+    A.injectPreUser = -1;
+    A.injectHideUntil = 0;
+    captureSendToken();
+    A.injecting = true; // prevents the ordinary-send hook from starting a second loop
+    try {
+      const sendResult = await P.typeAndSend(`Answer to your question: ${value}`);
+      if (sendResult === false) {
+        ui.toast("The provider did not accept the answer. Please try again.");
+        return false;
+      }
+    } catch (error) {
+      ui.toast(`Could not send that answer: ${error && error.message ? error.message : "provider composer unavailable"}`);
+      return false;
+    } finally {
+      setTimeout(() => { A.injecting = false; }, 400);
+    }
+    bumpSys("users");
+    diag("clarification.answer", { chars: value.length });
+    setTimeout(() => { if (!A.running && !A.userStopped) agentLoop(base); }, 300);
+    return true;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  AGENTIC LOOP
   // ════════════════════════════════════════════════════════════════════════
@@ -1563,6 +1598,19 @@
         if (res.kind === "provider_error") {
           ui.banner("warn", `${P.displayName} response interrupted`,
             `${P.displayName} ended the stream before a final answer. SharkNyx did not run a command from that incomplete reply. Retry once; if it repeats, try Ptero's Quick mode (if available) or another model. This appears to be a provider-side stream interruption.`);
+          break;
+        }
+
+        // A question-format response is a hard stop, even if a model mistakenly
+        // included a command block in the same answer. Never execute until the
+        // user explicitly chooses an option or submits their own reply.
+        const clarification = ZSParse.parseClarification(res.text || res.raw || "");
+        if (clarification) {
+          if (res.item) {
+            res.item.__zsClarification = clarification;
+            ui.showClarificationOptions(res.item, clarification, submitClarificationAnswer);
+          }
+          diag("clarification.awaitingUser", { choices: clarification.options.length });
           break;
         }
 
@@ -2441,6 +2489,10 @@
     },
 
     classify(item, next) {
+      if (item.__zsClarification) {
+        ui.showClarificationOptions(item, item.__zsClarification, submitClarificationAnswer);
+        return;
+      }
       if (item.dataset.zloop) { this.ensureOwnedChip(item); return; } // loop owns it
       const txt = P.classifyText(item, ".zs-chip"); // excludes thinking AND our chip
 
@@ -4219,6 +4271,120 @@
       });
     }
 
+    function showClarificationOptions(item, clarification, onAnswer) {
+      if (!item || !clarification || !Array.isArray(clarification.options)) return null;
+      let card = item.__zsClarificationCard;
+      if (card && card.isConnected) return card;
+      if (!card) {
+        card = document.createElement("section");
+        card.className = "zs-clarification-card";
+        card.setAttribute("role", "group");
+        card.setAttribute("aria-label", "Answer the AI's question");
+
+        const heading = document.createElement("div");
+        heading.className = "zs-clarification-heading";
+        heading.textContent = "Choose an answer to continue";
+        const question = document.createElement("p");
+        question.className = "zs-clarification-question";
+        question.textContent = clarification.question;
+        const choices = document.createElement("div");
+        choices.className = "zs-clarification-choices";
+        const status = document.createElement("div");
+        status.className = "zs-clarification-status";
+        status.setAttribute("role", "status");
+        status.setAttribute("aria-live", "polite");
+        status.textContent = "Choose one, or write your own answer.";
+        let busy = false;
+
+        const setDisabled = (disabled) => {
+          card.querySelectorAll("button, textarea").forEach((control) => { control.disabled = disabled; });
+        };
+        const submitAnswer = async (value) => {
+          const answer = String(value || "").trim();
+          if (busy || !answer) return;
+          busy = true;
+          setDisabled(true);
+          status.textContent = "Sending your answer…";
+          try {
+            const sent = await onAnswer(answer);
+            if (sent) {
+              card.classList.add("is-sent");
+              status.textContent = "Answer sent. Waiting for the AI to continue…";
+            } else {
+              busy = false;
+              setDisabled(false);
+              status.textContent = "Not sent. Wait for the AI to finish, then try again.";
+            }
+          } catch (error) {
+            busy = false;
+            setDisabled(false);
+            status.textContent = error && error.message ? error.message : "Could not send the answer. Try again.";
+          }
+        };
+
+        for (const option of clarification.options) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "zs-clarification-choice";
+          button.setAttribute("aria-label", `Answer ${option.label}: ${option.text}`);
+          const badge = document.createElement("span");
+          badge.className = "zs-clarification-letter";
+          badge.textContent = option.label;
+          const text = document.createElement("span");
+          text.className = "zs-clarification-choice-text";
+          text.textContent = option.text;
+          button.append(badge, text);
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void submitAnswer(`${option.label}. ${option.text}`);
+          });
+          choices.appendChild(button);
+        }
+
+        const customToggle = document.createElement("button");
+        customToggle.type = "button";
+        customToggle.className = "zs-clarification-custom-toggle";
+        customToggle.textContent = "Something else…";
+        const customArea = document.createElement("div");
+        customArea.className = "zs-clarification-custom";
+        customArea.hidden = true;
+        const customLabel = document.createElement("label");
+        customLabel.textContent = "Write your answer";
+        const customInput = document.createElement("textarea");
+        customInput.rows = 2;
+        customInput.placeholder = "Type your own answer…";
+        customLabel.appendChild(customInput);
+        const customSend = document.createElement("button");
+        customSend.type = "button";
+        customSend.className = "zs-clarification-send";
+        customSend.textContent = "Send answer";
+        customToggle.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          customArea.hidden = false;
+          customInput.focus();
+        });
+        customSend.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void submitAnswer(customInput.value);
+        });
+        customInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            customSend.click();
+          }
+        });
+        customArea.append(customLabel, customSend);
+        card.append(heading, question, choices, customToggle, customArea, status);
+        item.__zsClarificationSubmit = submitAnswer;
+      }
+      item.__zsClarificationCard = card;
+      if (card.parentElement !== item) item.appendChild(card);
+      return card;
+    }
+
     function toast(msg) {
       const t = document.createElement("div");
       t.className = "zs-toast";
@@ -4274,7 +4440,7 @@
     }
 
     build();
-    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, reviewScriptEdit, cancelScriptEditReview, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getMode: () => A.started ? (A.sessionMode || selectedMode) : selectedMode, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
+    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, reviewScriptEdit, cancelScriptEditReview, showClarificationOptions, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getMode: () => A.started ? (A.sessionMode || selectedMode) : selectedMode, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
   })();
 
   // ── Live token + timer, shown ONLY on a tool call's chip detail. The

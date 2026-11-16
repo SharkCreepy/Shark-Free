@@ -1,38 +1,99 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>SharkNyx</title>
   <style>
-    body { width: 248px; margin: 0; font-family: "Segoe UI", sans-serif; background: #16161a; color: #e8e8ec; }
-    .wrap { padding: 14px; }
-    h1 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-    .ver { font-size: 9.5px; font-weight: 500; letter-spacing: 0.2px;
-           color: rgba(255,255,255,0.55); background: none; border: none;
-           padding: 0; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7280; }
-    .dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
-    .dot.warn { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
-    .row { font-size: 12px; opacity: 0.85; margin: 6px 0; }
-    button { width: 100%; margin-top: 8px; padding: 8px; border: 0; border-radius: 8px; cursor: pointer; font-size: 12px; }
-    .ghost { background: rgba(255,255,255,0.08); color: #e8e8ec; }
-    .kofi { background: rgba(255,105,135,.16); color: #ff8fa3; border: 1px solid rgba(255,105,135,.4) !important; font-weight: 700; }
-    code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", Inter, system-ui, sans-serif;
+      background: #071224;
+      color: #f7faff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 310px;
+      margin: 0;
+      color: #f7faff;
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(72, 128, 222, .32), transparent 48%),
+        linear-gradient(145deg, #06101f 0%, #0c1d38 52%, #183968 100%);
+    }
+    .wrap { padding: 17px; }
+    .eyebrow {
+      margin: 0 0 9px;
+      color: #b8c9e7;
+      font-size: 9px;
+      font-weight: 750;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .brand { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+    .brand-mark {
+      display: grid; width: 28px; height: 28px; place-items: center;
+      border: 1px solid rgba(255,255,255,.34); border-radius: 9px;
+      background: linear-gradient(145deg, rgba(255,255,255,.26), rgba(119,166,244,.10));
+      box-shadow: 0 5px 16px rgba(0,0,0,.22); color: #fff; font-size: 15px; font-weight: 800;
+    }
+    h1 { margin: 0; font-size: 15px; font-weight: 760; letter-spacing: .01em; }
+    .ver { margin-left: auto; color: #d6e2f6; font-size: 10px; font-weight: 600; }
+    .status-card {
+      padding: 11px 12px 10px; border: 1px solid rgba(214,229,255,.20); border-radius: 12px;
+      background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.045));
+      box-shadow: 0 10px 26px rgba(0,0,0,.18); backdrop-filter: blur(12px);
+    }
+    .status-line { display: flex; align-items: center; gap: 8px; min-height: 17px; }
+    .dot { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: #718096; }
+    .dot.on { background: #54e0b0; box-shadow: 0 0 10px rgba(84,224,176,.78); }
+    .dot.warn { background: #ffd16d; box-shadow: 0 0 10px rgba(255,209,109,.68); }
+    .row { margin: 6px 0 0; color: #e6edf9; font-size: 11px; line-height: 1.45; }
+    #state { margin: 0; font-size: 12px; font-weight: 650; }
+    #tools { color: #b9c9e3; }
+    #servers { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); color: #c3d2e9; white-space: pre-line; font: 10px/1.55 ui-monospace, "Cascadia Code", monospace; }
+    .actions { display: grid; gap: 7px; margin-top: 12px; }
+    button {
+      width: 100%; min-height: 36px; padding: 8px 11px;
+      border: 1px solid rgba(229,239,255,.22); border-radius: 9px;
+      color: #f7faff; background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(95,143,214,.12));
+      font-family: inherit; font-size: 11px; font-weight: 600; line-height: 1.2; cursor: pointer; text-align: left;
+      transition: border-color .16s ease, background .16s ease, transform .16s ease;
+    }
+    button:hover { border-color: rgba(220,236,255,.52); background: linear-gradient(135deg, rgba(255,255,255,.20), rgba(98,153,235,.24)); transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .kofi { border-color: rgba(255,177,194,.42); background: linear-gradient(115deg, rgba(159,61,101,.30), rgba(112,71,151,.22)); color: #ffe4ec; }
+    .hint {
+      margin-top: 11px; padding: 10px 11px; border: 1px solid rgba(222,234,255,.16); border-radius: 10px;
+      background: rgba(3,10,21,.26); color: #d4e1f4; font-size: 10px; line-height: 1.55;
+    }
+    code { padding: 1px 5px; border: 1px solid rgba(255,255,255,.16); border-radius: 5px; background: rgba(255,255,255,.10); color: #fff; font: 10px ui-monospace, "Cascadia Code", monospace; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1><span id="dot" class="dot"></span> SharkNyx <span id="ver" class="ver"></span></h1>
-    <div class="row" id="state">Bridge: …</div>
-    <div class="row" id="tools"></div>
-    <div class="row" id="servers" style="white-space:pre-line; font-family:ui-monospace,monospace; opacity:0.75"></div>
-    <button class="ghost" id="reconnect">↻ Reconnect bridge</button>
-    <button class="ghost" id="restart">⟳ Restart Roblox server</button>
-    <button class="ghost" id="settings">⚙ Settings</button>
-    <button class="kofi" id="kofi">♥ Tip the developer on Ko-fi</button>
-    <div class="row" style="margin-top:10px; opacity:0.6">
-      Run <code>start.bat</code> and open <b>Roblox Studio</b>, then go to a supported AI.
+  <main class="wrap">
+    <p class="eyebrow">Local AI companion</p>
+    <header class="brand">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <h1>SharkNyx</h1>
+      <span id="ver" class="ver"></span>
+    </header>
+    <section class="status-card" aria-label="Bridge and Studio status">
+      <div class="status-line"><span id="dot" class="dot" aria-hidden="true"></span><div class="row" id="state" aria-live="polite">Bridge: …</div></div>
+      <div class="row" id="tools"></div>
+      <div class="row" id="servers"></div>
+    </section>
+    <div class="actions">
+      <button id="reconnect" type="button">↻ &nbsp;Reconnect bridge</button>
+      <button id="restart" type="button">⟳ &nbsp;Restart Roblox server</button>
+      <button id="settings" type="button">⚙ &nbsp;Settings and AI sites</button>
+      <button class="kofi" id="kofi" type="button">♥ &nbsp;Tip the developer</button>
     </div>
-  </div>
+    <aside class="hint">
+      Run <code>start.bat</code>, open <strong>Roblox Studio</strong>, then visit a supported AI chat. When SharkNyx needs a detail, choose an answer card in the chat or write your own.
+    </aside>
+  </main>
   <script src="popup.js"></script>
 </body>
 </html>

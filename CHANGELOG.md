@@ -2,6 +2,21 @@
 
 All notable changes to SharkNyx Free are documented here.
 
+## [1.2.8] - 2026-11-16
+
+### Added
+- Agent and Plan sessions can ask one focused clarification question with two to four selectable choices, plus a custom-answer field.
+- A question-formatted response pauses the Agent before tool execution; the selected answer is sent only after an explicit user action.
+- Apply the dark navy/white blue-gradient theme to the extension popup and provider-page overlay.
+
+### Changed
+- Remove Portal localhost message routing and relay injection from `background.js` and `manifest.json`; retain Roblox Studio bridge and supported provider integrations.
+- Bump the extension manifest to 1.2.8. DeepSeek remains a website recommendation only; no DeepSeek automation was added.
+
+### Verified
+- Run all extension regression tests and JavaScript syntax checks; validate manifest paths and CSS parsing.
+
+
 ## [1.2.7] - 2026-11-03
 
 ### Changed

@@ -24,11 +24,9 @@ It's a Chrome/Edge browser extension plus a small local bridge that connects cha
 
 [Watch the setup tutorial](https://youtu.be/kPKiZLZ9_Ps).
 
-## Local SharkNyx Portal relay
+## Portal integration status
 
-The local Portal relay is extension version 1.2.7. It uses `portal-relay.js` on `http://127.0.0.1:3000` (or `http://localhost:3000`). Load this `sharknyx-extension` folder as an unpacked extension, then reload the extension and any already-open Portal/provider tabs. Start the Portal with its `start-portal.bat` launcher. Open provider sites using the Portal's **Provider sites** links, then sign in on the regular provider website. The Portal does not open login popups or monitor account status. The portal and extension never read, copy, store, or transmit passwords, cookies, or session tokens. A Portal send requires a matching provider tab that you already opened and visibly activates it before sending; the extension does not create background tabs. Portal conversation IDs remain local metadata; the provider page's current conversation is shared across Portal chats for that provider.
-
-The Portal composer has separate **Chat** and **Roblox Agent** modes. Chat stays plain and never calls Studio tools. Agent mode requires live local-bridge and Studio MCP status, sends through the existing SharkNyx Agent loop and its current tool/script-review gates, and uses the already-open provider tab made visible by the user-initiated send. Because tool approval currently requires a visible page, Agent mode fails closed if the page remains hidden. The Portal shows extension, bridge, and Studio states separately, not provider-account login state. Kimi's K3.1 Pro, K2.8 Preview, and Instant choices are selected and confirmed through its visible model menu before a prompt is sent. HuggingChat Llama/Mistral and GLM-4/GLM-4V options are fallbacks; provider availability and page-side application still require confirmation, and Claude effort remains unmapped. Images are accepted only by adapters currently marked vision-capable and checked for canonical Base64 and matching image signatures. A live signed-in browser/provider roundtrip remains unverified.
+The Portal relay is disabled in this extension build: `manifest.json` does not inject `portal-relay.js` into localhost pages, and `background.js` contains no Portal message routing. The relay source file may remain in the tree, but loading this extension will not connect it to the Portal. The provider chat Agent/Plan features and Roblox Studio bridge remain available.
 
 ## Architecture
 
@@ -53,7 +51,7 @@ providers/groq.js    Groq Chat selectors
 providers/perplexity.js Perplexity selectors
 providers/huggingchat.js HuggingChat selectors
 background.js         WebSocket connection to the local bridge
-portal-relay.js       origin-checked localhost Portal message relay
+portal-relay.js       legacy source; not injected by this build's manifest
 ```
 
 `core/main.js` calls the common `ZSProvider` interface rather than reaching into each site's DOM. A provider integration consists of a site adapter plus its host and content-script entries in `manifest.json`, the bridge and popup host lists, and the site shortcut list in `core/main.js`.
@@ -82,3 +80,8 @@ Run the dependency-free smoke tests from this folder:
 ### Groq request-size / TPM errors
 
 Groq may reject a large accumulated request with `Request too large for model` and a per-minute token allowance. The Portal displays the provider's requested/allowed counts when available and will not silently trim or automatically resend the prompt. Shorten the prompt or provider-side conversation history, switch models, or start a fresh Groq conversation; a Portal-only New chat does not reset Groq's page history. Regression: `node test-groq-tpm-error.js`.
+
+
+## AI clarification choices
+
+When a material detail is missing, SharkNyx asks one focused question with two to four lettered options. The extension displays an answer card under that AI reply; select a choice or open **Something else…** to type a custom answer. The Agent waits for your explicit answer before continuing, and a question-formatted reply is never executed as a tool command. Clear requests do not trigger unnecessary questions.

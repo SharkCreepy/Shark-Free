@@ -346,10 +346,47 @@ const ZSParse = (() => {
            CMD_KEY_RE.test(txt); // command/tool with OR without params (e.g. list_commands)
   }
 
+  // Explicit, human-readable clarification contract used by the Agent/Plan
+  // prompt. Requiring the literal Question: heading and 2–4 labelled options
+  // avoids turning ordinary questions or numbered instructions into controls.
+  function parseClarification(text) {
+    const lines = String(text || "").replace(/\r/g, "").split("\n");
+    const qIndex = lines.findIndex((line) => /^\s*(?:\*\*)?Question\s*:\s*.+?(?:\*\*)?\s*$/i.test(line));
+    if (qIndex < 0) return null;
+    let question = lines[qIndex]
+      .replace(/^\s*(?:\*\*)?Question\s*:\s*(?:\*\*)?/i, "")
+      .replace(/\*\*\s*$/, "")
+      .trim();
+    if (!question) question = "The AI needs one detail before continuing.";
+    if (question.length > 300) question = question.slice(0, 297) + "…";
+
+    const options = [];
+    for (let i = qIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) {
+        if (options.length) break;
+        continue;
+      }
+      const match = line.match(/^(?:[-*•]\s*)?(?:\*\*)?([A-D])[.)]\s*(.+?)(?:\*\*)?$/i);
+      if (!match) {
+        if (options.length) break;
+        continue;
+      }
+      const label = match[1].toUpperCase();
+      const value = match[2].replace(/\*\*/g, "").trim();
+      if (!value || options.some((option) => option.label === label)) continue;
+      options.push({ label, text: value.length > 240 ? value.slice(0, 237) + "…" : value });
+      if (options.length === 4) break;
+    }
+    // Even if the model omitted or malformed the choices, return the question
+    // so the loop still stops and the UI can collect a custom answer.
+    return { question, options };
+  }
+
   return {
     START_M, END_M, LUA_START_RE, LUA_END_RE, CMD_KEY_RE,
     findLuaStart, findLuaEnd, matchBrace, extractJson, normalizeCall,
     hasToolSignature, hasOpenToolBlock, parseToolCalls, salvageCutOff, toolNameFromText,
-    isInjectedFeedback, hasCommandShape,
+    isInjectedFeedback, hasCommandShape, parseClarification,
   };
 })();

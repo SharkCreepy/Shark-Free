@@ -67,3 +67,15 @@ ok("salvage refuses trailing comma", ZSParse.salvageCutOff('{"command": "multi_e
 // Escaped quotes inside values must not confuse the string tracking.
 const cutEsc = ZSParse.salvageCutOff('{"command": "execute_luau", "params": {"code": "print(\\"hi\\")", "datamodel_type": "Edit"}');
 ok("salvage handles escaped quotes", cutEsc && cutEsc.tool === "execute_luau" && cutEsc.arguments.code === 'print("hi")');
+
+
+const clarificationText = "Question: Which approach should I use?\nA. Minimal changes\nB. Rebuild the interface\nC. Show a plan first";
+const clarification = ZSParse.parseClarification(clarificationText);
+ok("clarification question with three options", clarification && clarification.question === "Which approach should I use?" && clarification.options.length === 3 && clarification.options[1].text === "Rebuild the interface");
+ok("clarification format does not become a tool call", ZSParse.parseToolCalls(clarificationText).length === 0);
+ok("single-option clarification still blocks for a custom answer", ZSParse.parseClarification("Question: Choose?\nA. One option").options.length === 1);
+ok("duplicate options cannot expand or bypass clarification", ZSParse.parseClarification("Question: Choose?\nA. First\nA. Duplicate").options.length === 1);
+ok("ordinary question prose does not create buttons", ZSParse.parseClarification("Which style do you prefer?\nI can make it simple or colorful.") === null);
+ok("clarification accepts markdown emphasis", !!ZSParse.parseClarification("**Question: Choose a mode?**\n**A.** Plan\n**B.** Agent"));
+ok("question without choices still stops for custom clarification", ZSParse.parseClarification("Question: What should I change?").options.length === 0);
+ok("clarification exposes no more than four choices", ZSParse.parseClarification("Question: Choose?\nA. One\nB. Two\nC. Three\nD. Four\nA. Extra").options.length === 4);

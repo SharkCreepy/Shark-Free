@@ -17,7 +17,7 @@ assert.match(coreSource, /modelApplied: request\.modelApplied/, "the Portal only
 assert.match(kimiSource, /"kimi-k3-1-pro": "K3\.1 Pro"[\s\S]*?"kimi-k2-8-preview": "K2\.8 Preview"[\s\S]*?"kimi-instant": "Instant"/, "Kimi maps the three requested exact dropdown choices");
 assert.match(kimiSource, /exactModelMenuOption\(expected\)/, "Kimi must find an exact visible menu option before clicking it");
 assert.match(coreSource, /providerPageAuthStatus\(\)/, "provider sign-in readiness is checked only during an explicit send");
-assert.match(backgroundSource, /chrome\.tabs\.update\(tab\.id, \{ active: true \}\)/, "a Portal send visibly activates its already-open provider tab");
+assert.doesNotMatch(backgroundSource, /portal/i, "Portal dispatch is no longer part of the background worker");
 assert.doesNotMatch(backgroundSource, /chrome\.windows\.(?:create|remove)|chrome\.tabs\.create\s*\(/, "the worker never creates login popups or provider tabs");
 assert.doesNotMatch(backgroundSource + coreSource, /snx-provider-auth-probe|snx-provider-auth-state|snx-portal-provider-statuses/, "automatic provider sign-in monitoring and status pushes are absent");
 assert.match(coreSource, /payload\.agentMode === true/, "Agent execution requires the explicit boolean mode flag");

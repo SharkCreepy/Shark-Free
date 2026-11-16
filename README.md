@@ -1,15 +1,20 @@
 # SharkNyx Free
 
-SharkNyx Free integrates supported AI chat pages with Roblox Studio through a local browser extension and bridge. **SharkNyx v1.5.7** is distributed as the Full ZIP, which contains the local Portal (v1.3.1), companion extension (v1.2.7), and bridge files.
+**SharkNyx Free v1.5.8** is an extension-focused release (extension manifest v1.2.8). Download `SharkNyx-Extension-v1.2.8.zip` from this GitHub release. It contains the unpacked Chrome/Edge extension folder; it is not a Portal or full installer ZIP. The previous v1.5.7 Full ZIP remains in its existing release unchanged.
+
+## What's new
+
+- Agent and Plan sessions can ask one focused question with two to four answer choices and a custom reply field.
+- The Agent pauses on question-formatted replies and waits for your explicit answer before continuing; it will not execute commands from that question response.
+- Refresh the extension popup and provider-page surfaces with a dark navy/white blue-gradient theme.
+- Portal localhost routing and injection have been removed from the extension background worker and manifest. The Roblox Studio bridge and supported AI provider adapters remain.
 
 ## Install
 
-1. Download and extract `SharkNyx-v1.5.7-Full.zip` from the GitHub Release.
-2. Load the `sharknyx-extension` folder as an unpacked extension from `chrome://extensions` or `edge://extensions`.
-3. Start `Portal/start-portal.bat` on Windows or `Portal/start-portal.command` on macOS/Linux, then open `http://127.0.0.1:3000/` in the same browser profile.
-4. Open and sign in to your provider on its ordinary website. A Portal send requires an already-open provider tab and visibly switches to it; there are no custom login popups or automatically created background tabs.
-5. Start the local bridge with `start.bat` (Windows) or `MacOS_Start.command` (macOS). Roblox Agent mode also requires a live Studio MCP connection.
+1. Download and extract `SharkNyx-Extension-v1.2.8.zip`.
+2. Open `chrome://extensions` or `edge://extensions` and enable **Developer mode**.
+3. Choose **Load unpacked** and select the extracted `sharknyx-extension` folder.
+4. Open a supported AI chat site. Sign in there if required, choose **Agent** or **Plan** from the SharkNyx bar, and start the session.
+5. For Roblox Agent actions, start the local bridge with `start.bat` (Windows) or `MacOS_Start.command` (macOS) and enable Roblox Studio's MCP server.
 
-DeepSeek remains a **manual-only** Portal handoff; the extension does not automate or read that site. The Portal uses no provider API keys, and does not read or transfer passwords, cookies, or session tokens. The hosted Portal deployment is not changed by this local GitHub release.
-
-See [`CHANGELOG.md`](CHANGELOG.md) and the Portal's `README.md`/`PORTAL_BRIDGE.md` for details and limitations.
+The extension does not add a DeepSeek adapter or provider API-key integration. See [`CHANGELOG.md`](CHANGELOG.md) for full history.

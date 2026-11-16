@@ -1133,3 +1133,169 @@ html.zs-light #zs-root .zs-review-request textarea { background: #fff; color: #2
   #zs-root .zs-review-actions { padding: 10px; gap: 6px; }
   #zs-root .zs-review-actions button { padding-inline: 9px; }
 }
+
+
+/* ── SharkNyx navy/white gradient theme + AI clarification choices ── */
+#zs-root #zs-bar {
+  color: #f7faff !important;
+  background: radial-gradient(ellipse at 100% 0%, rgba(91, 151, 244, .22), transparent 48%),
+    linear-gradient(135deg, #071326 0%, #10264a 58%, #1d3d70 100%) !important;
+  border: 1px solid rgba(220, 234, 255, .28) !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .42), 0 0 0 1px rgba(255,255,255,.03) !important;
+}
+#zs-root #zs-brand { color: #fff !important; }
+#zs-root #zs-state { color: #e8f0ff !important; }
+#zs-root #zs-state b { color: #b8d5ff !important; }
+#zs-root #zs-support,
+#zs-root #zs-switch,
+#zs-root #zs-mode {
+  color: #f3f7ff !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.13), rgba(112,160,233,.11)) !important;
+  border-color: rgba(222, 235, 255, .24) !important;
+}
+#zs-root #zs-support:hover,
+#zs-root #zs-switch:hover,
+#zs-root #zs-mode:hover { background: rgba(255,255,255,.20) !important; color: #fff !important; }
+#zs-root #zs-menu,
+#zs-root #zs-setup {
+  color: #f4f8ff !important;
+  background: radial-gradient(ellipse at 100% 0%, rgba(71, 126, 215, .22), transparent 43%),
+    linear-gradient(150deg, #081426 0%, #102445 58%, #19355f 100%) !important;
+  border: 1px solid rgba(214, 231, 255, .25) !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,.48) !important;
+}
+#zs-root #zs-menu .zs-menu-head,
+#zs-root #zs-setup #zs-setup-head { border-bottom-color: rgba(255,255,255,.14) !important; }
+#zs-root #zs-menu .zs-menu-logo,
+#zs-root #zs-setup #zs-setup-logo,
+#zs-root #zs-menu .zs-site-name > span:first-child,
+#zs-root #zs-menu .zs-sec-label span,
+#zs-root #zs-setup #zs-setup-steps li { color: #f7faff !important; }
+#zs-root #zs-menu .zs-menu-tag,
+#zs-root #zs-menu .zs-menu-note,
+#zs-root #zs-menu .zs-site-host,
+#zs-root #zs-menu .zs-pick-label,
+#zs-root #zs-setup #zs-setup-sub { color: #bfd0ea !important; }
+#zs-root #zs-menu .zs-menu-sec + .zs-menu-sec,
+#zs-root #zs-setup #zs-setup-steps li + li { border-top-color: rgba(255,255,255,.12) !important; }
+#zs-root #zs-menu .zs-site-opt,
+#zs-root #zs-menu #zs-set-save,
+#zs-root #zs-menu #zs-mcp-add,
+#zs-root #zs-menu .zs-tip-opt,
+#zs-root #zs-menu #zs-set-text,
+#zs-root #zs-menu .zs-mcp-field,
+#zs-root #zs-menu .zs-mcp-item,
+#zs-root #zs-setup #zs-setup-dismiss {
+  color: #f2f7ff !important;
+  background: rgba(255,255,255,.075) !important;
+  border-color: rgba(220,234,255,.20) !important;
+}
+#zs-root #zs-menu button.zs-site-opt:hover,
+#zs-root #zs-menu #zs-set-save:hover,
+#zs-root #zs-menu #zs-mcp-add:hover,
+#zs-root #zs-menu .zs-tip-opt:hover,
+#zs-root #zs-setup #zs-setup-dismiss:hover { background: rgba(255,255,255,.15) !important; }
+#zs-root #zs-menu .zs-site-badge { color: #dceaff !important; border-color: rgba(220,234,255,.25) !important; }
+#zs-root #zs-menu .zs-site-go,
+#zs-root #zs-menu .zs-mcp-url,
+#zs-root #zs-menu #zs-set-status,
+#zs-root #zs-menu #zs-mcp-status,
+#zs-root #zs-menu .zs-tip-sub,
+#zs-root #zs-menu .zs-rbx-cur,
+#zs-root #zs-menu .zs-tip-sep { color: #b9cbea !important; }
+#zs-root #zs-menu .zs-mcp-remove { color: #f3b9c3 !important; }
+#zs-root #zs-menu .zs-mcp-remove:hover { color: #fff !important; background: rgba(244,93,122,.22) !important; }
+#zs-root #zs-menu input,
+#zs-root #zs-menu textarea,
+#zs-root #zs-menu select {
+  color: #f7faff !important;
+  background: rgba(3,10,22,.62) !important;
+  border-color: rgba(220,234,255,.25) !important;
+}
+#zs-root .zs-review-dialog {
+  background: radial-gradient(ellipse at 100% 0%, rgba(74,131,219,.18), transparent 44%),
+    linear-gradient(145deg, #091528 0%, #112649 62%, #1a3763 100%) !important;
+  color: #f3f7ff !important;
+  border-color: rgba(220,234,255,.25) !important;
+}
+#zs-root .zs-review-header h2 { color: #fff !important; }
+#zs-root .zs-review-subtitle,
+#zs-root .zs-review-target,
+#zs-root .zs-review-edit h3,
+#zs-root .zs-review-code-label,
+#zs-root .zs-review-request label { color: #d6e4f8 !important; }
+#zs-root .zs-review-edit { background: rgba(255,255,255,.045) !important; border-color: rgba(220,234,255,.13) !important; }
+#zs-root .zs-review-code-panel { background: rgba(2,9,20,.45) !important; }
+#zs-root .zs-review-code-panel pre,
+#zs-root .zs-review-raw { color: #eef4ff !important; }
+#zs-root .zs-review-request textarea { color: #f7faff !important; background: rgba(3,10,22,.62) !important; }
+html.zs-light #zs-root #zs-bar,
+html.zs-light #zs-root #zs-menu,
+html.zs-light #zs-root #zs-setup,
+html.zs-light #zs-root .zs-review-dialog {
+  color: #f4f8ff !important;
+  background: radial-gradient(ellipse at 100% 0%, rgba(76,134,224,.22), transparent 46%),
+    linear-gradient(145deg, #071326 0%, #10264a 58%, #1c3a69 100%) !important;
+}
+html.zs-light #zs-root #zs-brand,
+html.zs-light #zs-root #zs-state,
+html.zs-light #zs-root #zs-menu :is(.zs-menu-logo,.zs-site-name > span:first-child,.zs-sec-label span),
+html.zs-light #zs-root #zs-setup :is(#zs-setup-logo,#zs-setup-steps li),
+html.zs-light #zs-root .zs-review-header h2 { color: #fff !important; }
+html.zs-light #zs-root .zs-review-subtitle,
+html.zs-light #zs-root .zs-review-target,
+html.zs-light #zs-root .zs-review-edit h3,
+html.zs-light #zs-root .zs-review-code-label,
+html.zs-light #zs-root .zs-review-request label,
+html.zs-light #zs-root .zs-review-code-panel pre,
+html.zs-light #zs-root .zs-review-raw { color: #e8f0ff !important; }
+
+#zs-root .zs-clarification-card {
+  box-sizing: border-box;
+  display: grid;
+  gap: 10px;
+  width: min(620px, calc(100% - 20px));
+  margin: 12px 10px 8px;
+  padding: 15px;
+  border: 1px solid rgba(218,233,255,.30);
+  border-radius: 15px;
+  color: #f6f9ff;
+  background: radial-gradient(ellipse at 100% 0%, rgba(105,164,255,.27), transparent 48%),
+    linear-gradient(145deg, #071426 0%, #10284f 56%, #1e437a 100%);
+  box-shadow: 0 12px 34px rgba(0,0,0,.30);
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+#zs-root .zs-clarification-heading { color: #fff; font-size: 13px; font-weight: 760; letter-spacing: .01em; }
+#zs-root .zs-clarification-question { margin: 0; color: #e7efff; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+#zs-root .zs-clarification-choices { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
+#zs-root .zs-clarification-card button {
+  box-sizing: border-box; min-width: 0; min-height: 38px; padding: 8px 10px;
+  border: 1px solid rgba(226,238,255,.23); border-radius: 9px;
+  color: #f7faff; background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(119,168,239,.10));
+  font: inherit; text-align: left; cursor: pointer;
+  transition: transform .14s ease, background .14s ease, border-color .14s ease;
+}
+#zs-root .zs-clarification-card button:hover:not(:disabled) { transform: translateY(-1px); border-color: rgba(235,244,255,.52); background: linear-gradient(135deg, rgba(255,255,255,.22), rgba(113,165,244,.24)); }
+#zs-root .zs-clarification-card button:focus-visible,
+#zs-root .zs-clarification-card textarea:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#zs-root .zs-clarification-choice { display: flex; align-items: flex-start; gap: 8px; }
+#zs-root .zs-clarification-letter { flex: 0 0 21px; display: grid; place-items: center; width: 21px; height: 21px; border-radius: 7px; color: #fff; background: rgba(205,225,255,.18); font-size: 10px; font-weight: 800; }
+#zs-root .zs-clarification-choice-text { min-width: 0; overflow-wrap: anywhere; }
+#zs-root .zs-clarification-custom-toggle { justify-self: start; min-height: 30px !important; padding: 4px 8px !important; color: #d8e6fb !important; background: rgba(255,255,255,.055) !important; font-size: 11px !important; }
+#zs-root .zs-clarification-custom[hidden] { display: none !important; }
+#zs-root .zs-clarification-custom { display: grid; gap: 7px; }
+#zs-root .zs-clarification-custom label { display: grid; gap: 5px; color: #dfeaff; font-size: 11px; font-weight: 650; }
+#zs-root .zs-clarification-custom textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 56px; padding: 8px 9px; border: 1px solid rgba(222,236,255,.25); border-radius: 8px; color: #f7faff; background: rgba(2,9,20,.5); font: 12px/1.45 ui-sans-serif, system-ui, sans-serif; }
+#zs-root .zs-clarification-custom textarea::placeholder { color: #a9bedf; }
+#zs-root .zs-clarification-send { justify-self: end; min-height: 33px !important; padding: 7px 12px !important; color: #fff !important; background: linear-gradient(120deg,#2865c4,#4a7fda) !important; font-size: 11px !important; font-weight: 720 !important; }
+#zs-root .zs-clarification-card button:disabled,
+#zs-root .zs-clarification-card textarea:disabled { opacity: .58; cursor: wait; }
+#zs-root .zs-clarification-status { min-height: 16px; color: #c6d8f3; font-size: 10px; }
+#zs-root .zs-clarification-card.is-sent { border-color: rgba(122,226,190,.43); }
+@media (max-width: 520px) {
+  #zs-root .zs-clarification-card { width: calc(100% - 12px); margin-inline: 6px; padding: 12px; }
+  #zs-root .zs-clarification-choices { grid-template-columns: minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #zs-root .zs-clarification-card button { transition: none; }
+}
